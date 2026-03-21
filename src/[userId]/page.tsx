@@ -299,7 +299,7 @@ export default function TrackerPage() {
     handleAddMeal({
       name: m.name, calories: m.calories, protein: m.protein,
       carbs: m.carbs, fat: m.fat, source: m.source,
-      confidence: m.confidence, notes: "Relogged", serving_size: m.serving_size,
+      confidence: m.confidence, notes: "Relogged", serving_size: m.serving_size, meal_date: new Date().toISOString().split('T')[0],
     });
   }, [handleAddMeal]);
 
