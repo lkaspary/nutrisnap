@@ -184,7 +184,7 @@ function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => v
     const seen = new Map<string, Meal>();
     [...meals].sort((a, b) => b.meal_date.localeCompare(a.meal_date))
       .forEach(m => { if (!seen.has(m.name.toLowerCase())) seen.set(m.name.toLowerCase(), m); });
-    return [...seen.values()];
+    return Array.from(seen.values());
   }, [meals]);
   const filtered = q.trim() ? unique.filter(m => m.name.toLowerCase().includes(q.toLowerCase())) : unique.slice(0, 8);
 
