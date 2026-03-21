@@ -181,10 +181,14 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
 function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => void }) {
   const [q, setQ] = useState("");
   const unique = useMemo(() => {
-    const seen = new Map<string, Meal>();
-    [...meals].sort((a, b) => b.meal_date.localeCompare(a.meal_date))
-      .forEach(m => { if (!seen.has(m.name.toLowerCase())) seen.set(m.name.toLowerCase(), m); });
-    return Array.from(seen.values());
+    const sorted = [...meals].sort((a, b) => b.meal_date.localeCompare(a.meal_date));
+const names = new Set<string>();
+return sorted.filter(m => {
+  const key = m.name.toLowerCase();
+  if (names.has(key)) return false;
+  names.add(key);
+  return true;
+});
   }, [meals]);
   const filtered = q.trim() ? unique.filter(m => m.name.toLowerCase().includes(q.toLowerCase())) : unique.slice(0, 8);
 
