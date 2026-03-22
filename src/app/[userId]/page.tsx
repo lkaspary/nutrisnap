@@ -355,7 +355,10 @@ export default function TrackerPage() {
       if (result.error) { setError(result.error); setLoading(false); return; }
       const imgUrl = preview ?? undefined;
       await handleAddMeal(result, imgUrl);
-    } catch { setError("Could not estimate. Try again."); }
+    } catch(e) {
+      const msg = e instanceof Error ? e.message : "Could not estimate. Try again.";
+      setError(msg);
+    }
     finally { setLoading(false); }
   };
 
