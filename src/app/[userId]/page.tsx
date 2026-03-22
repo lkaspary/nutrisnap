@@ -338,7 +338,7 @@ export default function TrackerPage() {
       } else {
         await runFinal(textInput, inputMode, null, b64, mime);
       }
-    } catch { setError("Something went wrong."); setLoading(false); }
+    } catch(e) { setError(e instanceof Error ? e.message : "Something went wrong."); setLoading(false); }
   };
 
   const runFinal = async (
