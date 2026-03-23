@@ -32,3 +32,7 @@ export async function deleteMeal(id:string): Promise<void> {
   const {error} = await supabase.from("meals").delete().eq("id",id);
   if (error) throw error;
 }
+export async function updateMeal(id:string, updates:Partial<Omit<Meal,"id"|"profile_id"|"logged_at">>): Promise<void> {
+  const {error} = await supabase.from("meals").update(updates).eq("id",id);
+  if (error) throw error;
+}
