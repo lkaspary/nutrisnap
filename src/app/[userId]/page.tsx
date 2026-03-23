@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { getProfiles, getMeals, addMeal, deleteMeal, type Profile, type Meal } from "@/lib/db";
+import { getProfiles, getMeals, addMeal, deleteMeal, updateMeal, type Profile, type Meal } from "@/lib/db";
 import { sumMacros, todayISO, getLast7Days, fmtShort, fmtWeek, fmtMonth, getWeekStart, DAILY_GOAL, PROTEIN_GOAL } from "@/lib/utils";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -28,6 +28,16 @@ function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: strin
   });
 }
 
+function offsetDate(date: string, days: number): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setDate(dt.getDate() + days);
+  const ny = dt.getFullYear();
+  const nm = String(dt.getMonth() + 1).padStart(2, "0");
+  const nd = String(dt.getDate()).padStart(2, "0");
+  return `${ny}-${nm}-${nd}`;
+}
+
 // ── CalorieRing ───────────────────────────────────────────────────────────────
 function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
   const pct = Math.min(eaten / goal, 1), r = 48, cx = 56, cy = 56, circ = 2 * Math.PI * r;
@@ -46,40 +56,74 @@ function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
 }
 
 // ── MiniChart ─────────────────────────────────────────────────────────────────
-function MiniChart({ data, color, goal, label, unit, onBarClick }: {
+function MiniChart({ data, color, goal, label, unit, onBarClick, viewMode }: {
   data: { date: string; value: number }[];
-  color: string; goal: number; label: string; unit: string; onBarClick: () => void;
+  color: string; goal: number; label: string; unit: string;
+  onBarClick: () => void; viewMode: "day" | "week";
 }) {
-  const max = Math.max(...data.map(d => d.value), goal * 1.1, 1);
+  const weekData = useMemo(() => {
+    if (viewMode === "day") return data;
+    const weeks: { date: string; value: number }[] = [];
+    let i = 0;
+    while (i < data.length) {
+      const chunk = data.slice(Math.max(0, i - 6), i + 1);
+      const vals = chunk.filter(d => d.value > 0);
+      weeks.push({ date: data[i].date, value: vals.length ? Math.round(vals.reduce((a, d) => a + d.value, 0) / vals.length) : 0 });
+      i += 7;
+    }
+    // For 7-day window just show rolling average per day grouped into one week
+    const nonZero = data.filter(d => d.value > 0);
+    const avg = nonZero.length ? Math.round(nonZero.reduce((a, d) => a + d.value, 0) / nonZero.length) : 0;
+    return [{ date: data[0].date, value: avg }];
+  }, [data, viewMode]);
+
+  const displayData = viewMode === "day" ? data : weekData;
+  const max = Math.max(...displayData.map(d => d.value), goal * 1.1, 1);
+
   return (
     <div>
       <div className="flex justify-between text-xs text-gray-400 mb-1">
-        <span>{label}</span><span>Goal: {goal} {unit}</span>
+        <span>{label}</span>
+        <span>Goal: {goal} {unit}</span>
       </div>
-      <div className="flex items-end gap-1 h-20 relative">
-        <div className="absolute left-0 right-0 border-t border-dashed opacity-30"
+      <div className="flex items-end gap-1 h-24 relative">
+        {/* Goal line */}
+        <div className="absolute left-0 right-0 border-t border-dashed opacity-40"
           style={{ bottom: `${(goal / max) * 100}%`, borderColor: color }} />
-        {data.map((d, i) => {
+        {displayData.map((d, i) => {
           const pct = (d.value / max) * 100;
-          const isToday = i === 6;
+          const isToday = viewMode === "day" ? i === displayData.length - 1 : true;
           return (
             <div key={d.date} onClick={() => d.value > 0 && onBarClick()}
               title={`${fmtShort(d.date)}: ${d.value} ${unit}`}
-              className="flex-1 flex flex-col justify-end h-full cursor-pointer">
+              className="flex-1 flex flex-col justify-end h-full cursor-pointer relative">
+              {d.value > 0 && (
+                <div className="absolute w-full text-center"
+                  style={{ bottom: `${Math.max(pct, 2)}%`, fontSize: 8, color, fontWeight: 600, paddingBottom: 2 }}>
+                  {d.value}
+                </div>
+              )}
               <div className="w-full rounded-t-sm transition-opacity"
                 style={{ height: `${Math.max(pct, 2)}%`, background: color, opacity: isToday ? 1 : 0.5, border: isToday ? `1.5px solid ${color}` : "none" }} />
             </div>
           );
         })}
       </div>
-      <div className="flex gap-1 mt-1">
-        {data.map((d, i) => (
-          <div key={d.date} className="flex-1 text-center"
-            style={{ fontSize: 9, color: i === 6 ? "#374151" : "#9ca3af", fontWeight: i === 6 ? 600 : 400 }}>
-            {new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "narrow" })}
-          </div>
-        ))}
-      </div>
+      {viewMode === "day" && (
+        <div className="flex gap-1 mt-1">
+          {data.map((d, i) => (
+            <div key={d.date} className="flex-1 text-center"
+              style={{ fontSize: 9, color: i === data.length - 1 ? "#374151" : "#9ca3af", fontWeight: i === data.length - 1 ? 600 : 400 }}>
+              {new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "narrow" })}
+            </div>
+          ))}
+        </div>
+      )}
+      {viewMode === "week" && (
+        <div className="text-center mt-1" style={{ fontSize: 9, color: "#9ca3af" }}>
+          7-day avg
+        </div>
+      )}
     </div>
   );
 }
@@ -218,19 +262,36 @@ function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => v
 }
 
 // ── MealCard ──────────────────────────────────────────────────────────────────
-function MealCard({ meal: m, onDelete }: { meal: Meal; onDelete: (id: string) => void }) {
+function MealCard({ meal: m, onDelete, onDateChange }: {
+  meal: Meal; onDelete: (id: string) => void;
+  onDateChange: (id: string, newDate: string) => void;
+}) {
   const time = new Date(m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  const today = todayISO();
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 mb-2 flex items-center gap-3">
-      {m.image_url
-        ? <img src={m.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
-        : <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-xl flex-shrink-0">🍽️</div>}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{m.name}</p>
-        <p className="text-xs text-gray-400">{time} · P: {m.protein}g · C: {m.carbs}g · F: {m.fat}g</p>
+    <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 mb-2">
+      <div className="flex items-center gap-3">
+        {m.image_url
+          ? <img src={m.image_url} alt="" className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+          : <div className="w-10 h-10 rounded-lg bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-xl flex-shrink-0">🍽️</div>}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{m.name}</p>
+          <p className="text-xs text-gray-400">{time} · P: {m.protein}g · C: {m.carbs}g · F: {m.fat}g</p>
+        </div>
+        <span className="text-sm font-medium flex-shrink-0" style={{ color: "var(--cal)" }}>{m.calories}</span>
+        <button onClick={() => onDelete(m.id)} className="text-gray-300 hover:text-gray-500 text-sm flex-shrink-0">✕</button>
       </div>
-      <span className="text-sm font-medium flex-shrink-0" style={{ color: "var(--cal)" }}>{m.calories}</span>
-      <button onClick={() => onDelete(m.id)} className="text-gray-300 hover:text-gray-500 text-sm flex-shrink-0">✕</button>
+      {/* Date editor */}
+      <div className="flex items-center gap-2 mt-2 pt-2 border-t border-gray-100 dark:border-zinc-800">
+        <span className="text-xs text-gray-400 flex-1">{fmtShort(m.meal_date)}</span>
+        <button
+          onClick={() => onDateChange(m.id, offsetDate(m.meal_date, -1))}
+          className="text-xs px-2 py-1 rounded-lg bg-gray-100 dark:bg-zinc-800 text-gray-500 hover:bg-gray-200">← Day</button>
+        <button
+          onClick={() => onDateChange(m.id, offsetDate(m.meal_date, 1))}
+          disabled={m.meal_date >= today}
+          className="text-xs px-2 py-1 rounded-lg bg-gray-100 dark:bg-zinc-800 text-gray-500 hover:bg-gray-200 disabled:opacity-30">Day →</button>
+      </div>
     </div>
   );
 }
@@ -256,6 +317,7 @@ export default function TrackerPage() {
   const [loadingMsg, setLoadingMsg]   = useState("");
   const [error, setError]             = useState("");
   const [showTable, setShowTable]     = useState(false);
+  const [chartView, setChartView]     = useState<"day" | "week">("day");
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -298,12 +360,17 @@ export default function TrackerPage() {
     setMeals(prev => prev.filter(m => m.id !== id));
   }, []);
 
+  const handleDateChange = useCallback(async (id: string, newDate: string) => {
+    await updateMeal(id, { meal_date: newDate });
+    setMeals(prev => prev.map(m => m.id === id ? { ...m, meal_date: newDate } : m));
+  }, []);
+
   const handleRelog = useCallback((m: Meal) => {
     handleAddMeal({
       name: m.name, calories: m.calories, protein: m.protein,
       carbs: m.carbs, fat: m.fat, source: m.source,
       confidence: m.confidence, notes: "Relogged", serving_size: m.serving_size,
-      meal_date: new Date().toISOString().split('T')[0],
+      meal_date: todayISO(),
     });
   }, [handleAddMeal]);
 
@@ -355,10 +422,7 @@ export default function TrackerPage() {
       if (result.error) { setError(result.error); setLoading(false); return; }
       const imgUrl = preview ?? undefined;
       await handleAddMeal(result, imgUrl);
-    } catch(e) {
-      const msg = e instanceof Error ? e.message : "Could not estimate. Try again.";
-      setError(msg);
-    }
+    } catch(e) { setError(e instanceof Error ? e.message : "Could not estimate. Try again."); }
     finally { setLoading(false); }
   };
 
@@ -414,13 +478,30 @@ export default function TrackerPage() {
 
       {/* Charts */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4 space-y-4">
-        <MiniChart data={last7.map(d => ({ date: d.date, value: d.calValue }))}
-          color="#7F77DD" goal={DAILY_GOAL} label="Calories — last 7 days" unit="kcal"
-          onBarClick={() => setShowTable(t => !t)} />
-        <MiniChart data={last7.map(d => ({ date: d.date, value: d.protValue }))}
-          color="#1D9E75" goal={PROTEIN_GOAL} label="Protein — last 7 days" unit="g"
-          onBarClick={() => setShowTable(t => !t)} />
-        <p className="text-xs text-center text-blue-400 cursor-pointer" onClick={() => setShowTable(t => !t)}>
+        {/* Chart view toggle */}
+        <div className="flex justify-end gap-1">
+          {(["day", "week"] as const).map(v => (
+            <button key={v} onClick={() => setChartView(v)}
+              className="px-3 py-1 text-xs rounded-lg capitalize transition-colors"
+              style={{ background: chartView === v ? "#f3f4f6" : "transparent", fontWeight: chartView === v ? 600 : 400, color: chartView === v ? "#111" : "#9ca3af" }}>
+              {v === "day" ? "Daily" : "7-day avg"}
+            </button>
+          ))}
+        </div>
+        <MiniChart
+          data={last7.map(d => ({ date: d.date, value: d.calValue }))}
+          color="#7F77DD" goal={DAILY_GOAL}
+          label="Calories — last 7 days" unit="kcal"
+          onBarClick={() => setShowTable(t => !t)}
+          viewMode={chartView} />
+        <MiniChart
+          data={last7.map(d => ({ date: d.date, value: d.protValue }))}
+          color="#1D9E75" goal={PROTEIN_GOAL}
+          label="Protein — last 7 days" unit="g"
+          onBarClick={() => setShowTable(t => !t)}
+          viewMode={chartView} />
+        <p className="text-xs text-center text-blue-400 cursor-pointer"
+          onClick={() => setShowTable(t => !t)}>
           {showTable ? "▲ Hide table" : "▼ Tap a bar or here for full history"}
         </p>
       </div>
@@ -446,7 +527,7 @@ export default function TrackerPage() {
                 No meals today.{" "}
                 <button onClick={() => setTab("add")} className="text-blue-400">Add one →</button>
               </div>
-            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} />)}
+            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onDateChange={handleDateChange} />)}
         </div>
       )}
 
@@ -501,19 +582,29 @@ export default function TrackerPage() {
           {/* Input area */}
           {!clarification && (
             <div className="space-y-3">
-
-              {/* Photo / label upload — shown for meal and label modes */}
+              {/* Photo / label upload */}
               {inputMode !== "text" && (
                 !preview ? (
-                  <div onClick={() => fileRef.current?.click()}
-                    onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
-                    onDragOver={e => e.preventDefault()}
-                    className="border border-dashed border-gray-300 dark:border-zinc-600 rounded-2xl p-8 text-center cursor-pointer hover:border-gray-400 transition-colors">
-                    <div className="text-4xl mb-2">{inputMode === "label" ? "🏷️" : "🍽️"}</div>
-                    <p className="text-sm font-medium">{inputMode === "label" ? "Scan nutrition label" : "Upload meal photo"}</p>
-                    <p className="text-xs text-gray-400 mt-1">Drag & drop or tap to browse</p>
-                    <input ref={fileRef} type="file" accept="image/*" className="hidden"
-                      onChange={e => e.target.files && handleFile(e.target.files[0])} />
+                  <div>
+                    <div
+                      onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
+                      onDragOver={e => e.preventDefault()}
+                      className="border border-dashed border-gray-300 dark:border-zinc-600 rounded-2xl p-6 text-center">
+                      <div className="text-4xl mb-2">{inputMode === "label" ? "🏷️" : "🍽️"}</div>
+                      <p className="text-sm font-medium mb-3">{inputMode === "label" ? "Scan nutrition label" : "Upload meal photo"}</p>
+                      <div className="flex gap-2 justify-center">
+                        <button onClick={() => { if (fileRef.current) { fileRef.current.removeAttribute("capture"); fileRef.current.click(); } }}
+                          className="px-4 py-2 text-xs bg-gray-100 dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-zinc-600 font-medium">
+                          📁 Gallery
+                        </button>
+                        <button onClick={() => { if (fileRef.current) { fileRef.current.setAttribute("capture", "environment"); fileRef.current.click(); } }}
+                          className="px-4 py-2 text-xs bg-gray-100 dark:bg-zinc-800 rounded-xl border border-gray-200 dark:border-zinc-600 font-medium">
+                          📷 Camera
+                        </button>
+                      </div>
+                      <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                        onChange={e => e.target.files && handleFile(e.target.files[0])} />
+                    </div>
                   </div>
                 ) : (
                   <div className="relative">
@@ -524,7 +615,7 @@ export default function TrackerPage() {
                 )
               )}
 
-              {/* Text input — shown for text mode always, and for meal mode as optional extra */}
+              {/* Text input */}
               {inputMode === "text" && (
                 <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                   placeholder="e.g. 'Two scrambled eggs with toast' or 'McDonald's Big Mac meal'" rows={3}
@@ -539,7 +630,7 @@ export default function TrackerPage() {
                   className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
               )}
 
-              {/* Submit button */}
+              {/* Submit */}
               <div className="flex gap-2">
                 {(preview || textInput.trim()) && (
                   <button onClick={resetAdd}
@@ -580,7 +671,7 @@ export default function TrackerPage() {
                           P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> · C: {dt.carbs}g · F: {dt.fat}g
                         </p>
                       </div>
-                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} />)}
+                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onDateChange={handleDateChange} />)}
                     </div>
                   );
                 })}
