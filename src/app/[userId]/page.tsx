@@ -452,6 +452,12 @@ export default function TrackerPage() {
         </button>
       </div>
 
+      {/* Quick add button */}
+      <button onClick={() => setTab("add")}
+        className="w-full mb-4 py-3 rounded-2xl border-2 border-dashed border-gray-300 dark:border-zinc-600 text-sm font-medium text-gray-400 hover:border-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center gap-2">
+        <span className="text-lg">+</span> Log a meal
+      </button>
+
       {/* Daily summary */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4 flex items-center gap-4">
         <CalorieRing eaten={totals.calories} goal={DAILY_GOAL} />
