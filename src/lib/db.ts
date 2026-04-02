@@ -2,7 +2,7 @@ import { supabase } from "./supabase";
 export type Profile = { id:string; name:string; avatar:string; avatar_bg:string; created_at:string; };
 export type Meal = {
   id:string; profile_id:string; name:string;
-  calories:number; protein:number; carbs:number; fat:number;
+  calories:number; protein:number; carbs:number; fat:number; sodium:number;
   source?:string; confidence?:string; notes?:string;
   serving_size?:string; image_url?:string|null;
   meal_date:string; logged_at:string;
@@ -20,8 +20,13 @@ export async function deleteProfile(id:string): Promise<void> {
   if (error) throw error;
 }
 export async function getMeals(profileId:string): Promise<Meal[]> {
+  const since = new Date();
+  since.setDate(since.getDate() - 30);
+  const sinceISO = since.toISOString().split("T")[0];
   const {data,error} = await supabase.from("meals").select("*")
-    .eq("profile_id",profileId).order("logged_at",{ascending:false});
+    .eq("profile_id",profileId)
+    .gte("meal_date", sinceISO)
+    .order("logged_at",{ascending:false});
   if (error) throw error; return data??[];
 }
 export async function addMeal(meal:Omit<Meal,"id"|"logged_at">): Promise<Meal> {
