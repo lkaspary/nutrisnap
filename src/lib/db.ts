@@ -26,7 +26,6 @@ export async function getMeals(profileId:string, days=14): Promise<Meal[]> {
   const {data,error} = await supabase.from("meals").select("*")
     .eq("profile_id",profileId)
     .gte("meal_date", sinceISO)
-    .order("meal_date",{ascending:false})
     .order("logged_at",{ascending:false});
   if (error) throw error; return data??[];
 }
