@@ -2,7 +2,7 @@ import { supabase } from "./supabase";
 export type Profile = { id:string; name:string; avatar:string; avatar_bg:string; created_at:string; };
 export type Meal = {
   id:string; profile_id:string; name:string;
-  calories:number; protein:number; carbs:number; fat:number; sodium:number;
+  calories:number; protein:number; carbs:number; fat:number;
   source?:string; confidence?:string; notes?:string;
   serving_size?:string; image_url?:string|null;
   meal_date:string; logged_at:string;
