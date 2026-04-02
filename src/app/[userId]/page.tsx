@@ -313,7 +313,10 @@ export default function TrackerPage() {
 
   const [profile, setProfile]         = useState<Profile | null>(null);
   const [meals, setMeals]             = useState<Meal[]>([]);
+  const [mealsReady, setMealsReady]   = useState(false);
   const [ready, setReady]             = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [daysLoaded, setDaysLoaded]   = useState(14);
   const [inputMode, setInputMode]     = useState<"text" | "meal" | "label">("text");
   const [textInput, setTextInput]     = useState("");
   const [preview, setPreview]         = useState<string | null>(null);
@@ -330,12 +333,28 @@ export default function TrackerPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    Promise.all([getProfiles(), getMeals(userId)]).then(([profs, ms]) => {
+    // Step 1: load profiles first — show UI immediately
+    getProfiles().then(profs => {
       const p = profs.find(x => x.id === userId);
       if (!p) { router.push("/"); return; }
-      setProfile(p); setMeals(ms); setReady(true);
+      setProfile(p);
+      setReady(true);
+      // Step 2: load meals in background after UI is shown
+      getMeals(userId, 14).then(ms => {
+        setMeals(ms);
+        setMealsReady(true);
+      });
     });
   }, [userId, router]);
+
+  const loadMoreMeals = async () => {
+    setLoadingMore(true);
+    const moreDays = daysLoaded + 30;
+    const ms = await getMeals(userId, moreDays);
+    setMeals(ms);
+    setDaysLoaded(moreDays);
+    setLoadingMore(false);
+  };
 
   const today = todayISO();
   const todayMeals = meals.filter(m => m.meal_date === today);
@@ -428,27 +447,35 @@ export default function TrackerPage() {
         body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar }),
       }).then(r => r.json());
       if (result.error) { setError(result.error); setLoading(false); return; }
-      const imgUrl = preview ?? undefined;
-      await handleAddMeal(result, imgUrl);
+      await handleAddMeal(result, preview ?? undefined);
     } catch(e) { setError(e instanceof Error ? e.message : "Could not estimate. Try again."); }
     finally { setLoading(false); }
   };
 
-  if (!ready) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <p className="text-gray-400">Loading…</p>
-    </div>
-  );
-
-  const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
   const canSubmit = pendingFile || textInput.trim().length > 0;
 
-  // History grouped by date (excluding today)
   const historyGrouped = meals
     .filter(m => m.meal_date !== today)
     .reduce<Record<string, Meal[]>>((acc, m) => {
       acc[m.meal_date] = acc[m.meal_date] || []; acc[m.meal_date].push(m); return acc;
     }, {});
+
+  // Show skeleton while profile loads
+  if (!ready) return (
+    <div className="max-w-md mx-auto px-4 pb-16 pt-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="h-6 w-36 bg-gray-200 dark:bg-zinc-700 rounded animate-pulse mb-1" />
+          <div className="h-3 w-28 bg-gray-100 dark:bg-zinc-800 rounded animate-pulse" />
+        </div>
+        <div className="w-24 h-9 bg-gray-200 dark:bg-zinc-700 rounded-full animate-pulse" />
+      </div>
+      <div className="h-32 bg-gray-100 dark:bg-zinc-800 rounded-2xl animate-pulse mb-4" />
+      <div className="h-48 bg-gray-100 dark:bg-zinc-800 rounded-2xl animate-pulse mb-4" />
+    </div>
+  );
+
+  const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
     <div className="max-w-md mx-auto px-4 pb-16 pt-4">
@@ -502,12 +529,18 @@ export default function TrackerPage() {
             </button>
           ))}
         </div>
-        <MiniChart data={last7.map(d => ({ date: d.date, value: d.calValue }))}
-          color="#7F77DD" goal={DAILY_GOAL} label="Calories — last 7 days" unit="kcal"
-          onBarClick={() => setShowTable(t => !t)} viewMode={chartView} />
-        <MiniChart data={last7.map(d => ({ date: d.date, value: d.protValue }))}
-          color="#1D9E75" goal={PROTEIN_GOAL} label="Protein — last 7 days" unit="g"
-          onBarClick={() => setShowTable(t => !t)} viewMode={chartView} />
+        {!mealsReady ? (
+          <div className="h-24 bg-gray-100 dark:bg-zinc-800 rounded-xl animate-pulse" />
+        ) : (
+          <>
+            <MiniChart data={last7.map(d => ({ date: d.date, value: d.calValue }))}
+              color="#7F77DD" goal={DAILY_GOAL} label="Calories — last 7 days" unit="kcal"
+              onBarClick={() => setShowTable(t => !t)} viewMode={chartView} />
+            <MiniChart data={last7.map(d => ({ date: d.date, value: d.protValue }))}
+              color="#1D9E75" goal={PROTEIN_GOAL} label="Protein — last 7 days" unit="g"
+              onBarClick={() => setShowTable(t => !t)} viewMode={chartView} />
+          </>
+        )}
         <p className="text-xs text-center text-blue-400 cursor-pointer" onClick={() => setShowTable(t => !t)}>
           {showTable ? "▲ Hide table" : "▼ Tap a bar or here for full history"}
         </p>
@@ -518,8 +551,6 @@ export default function TrackerPage() {
       {/* Add new meal */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
         <p className="text-xs font-medium text-gray-400 mb-3">Add new meal</p>
-
-        {/* Mode selector */}
         <div className="flex gap-2 mb-4">
           {([
             ["meal",  "🍽️", "Meal photo"],
@@ -539,7 +570,6 @@ export default function TrackerPage() {
           ))}
         </div>
 
-        {/* Clarification */}
         {clarification && !loading && (
           <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
             <p className="text-sm font-medium mb-2">One quick question:</p>
@@ -559,7 +589,6 @@ export default function TrackerPage() {
           </div>
         )}
 
-        {/* Input area */}
         {!clarification && (
           <div className="space-y-3">
             {inputMode !== "text" && (
@@ -590,20 +619,17 @@ export default function TrackerPage() {
                 </div>
               )
             )}
-
             {inputMode === "text" && (
               <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                 placeholder="e.g. 'Two scrambled eggs with toast' or 'McDonald's Big Mac meal'" rows={3}
                 className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
             )}
-
             {inputMode !== "text" && (
               <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                 placeholder={inputMode === "label" ? "Optional: add notes (e.g. '2 servings')" : "Optional: describe the meal for better accuracy"}
                 rows={2}
                 className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
             )}
-
             <div className="flex gap-2">
               {(preview || textInput.trim()) && (
                 <button onClick={resetAdd}
@@ -618,7 +644,6 @@ export default function TrackerPage() {
             </div>
           </div>
         )}
-
         {loading && <p className="text-center text-sm text-gray-400 mt-3">⏳ {loadingMsg}</p>}
         {error   && <p className="text-red-500 text-sm mt-2">{error}</p>}
       </div>
@@ -632,9 +657,13 @@ export default function TrackerPage() {
       {/* Today's meals */}
       <div className="mb-4">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Today</p>
-        {todayMeals.length === 0
-          ? <p className="text-sm text-gray-400 text-center py-4">No meals logged today.</p>
-          : todayMeals.map(m => <MealRow key={m.id} meal={m} onDelete={handleDeleteMeal} onDateChange={handleDateChange} />)}
+        {!mealsReady ? (
+          <div className="h-12 bg-gray-100 dark:bg-zinc-800 rounded-xl animate-pulse" />
+        ) : todayMeals.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-4">No meals logged today.</p>
+        ) : (
+          todayMeals.map(m => <MealRow key={m.id} meal={m} onDelete={handleDeleteMeal} onDateChange={handleDateChange} />)
+        )}
       </div>
 
       {/* History */}
@@ -645,13 +674,20 @@ export default function TrackerPage() {
           <span className="text-gray-400 text-xs">{showHistory ? "▲ Hide" : "▼ Show"}</span>
         </button>
         {showHistory && (
-          Object.keys(historyGrouped).length === 0
-            ? <p className="text-sm text-gray-400 text-center py-4">No history yet.</p>
-            : Object.entries(historyGrouped).sort((a, b) => b[0].localeCompare(a[0])).map(([date, dayMeals]) => (
-                <DayGroup key={date} date={date} dayMeals={dayMeals}
-                  dt={sumMacros(dayMeals)}
-                  onDelete={handleDeleteMeal} onDateChange={handleDateChange} />
-              ))
+          <div>
+            {Object.keys(historyGrouped).length === 0
+              ? <p className="text-sm text-gray-400 text-center py-4">No history yet.</p>
+              : Object.entries(historyGrouped).sort((a, b) => b[0].localeCompare(a[0])).map(([date, dayMeals]) => (
+                  <DayGroup key={date} date={date} dayMeals={dayMeals}
+                    dt={sumMacros(dayMeals)}
+                    onDelete={handleDeleteMeal} onDateChange={handleDateChange} />
+                ))
+            }
+            <button onClick={loadMoreMeals} disabled={loadingMore}
+              className="w-full mt-2 py-2.5 text-xs text-gray-400 border border-gray-200 dark:border-zinc-700 rounded-xl hover:bg-gray-50 disabled:opacity-40">
+              {loadingMore ? "Loading…" : `Load more (showing last ${daysLoaded} days)`}
+            </button>
+          </div>
         )}
       </div>
 

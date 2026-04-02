@@ -19,13 +19,14 @@ export async function deleteProfile(id:string): Promise<void> {
   const {error} = await supabase.from("profiles").delete().eq("id",id);
   if (error) throw error;
 }
-export async function getMeals(profileId:string): Promise<Meal[]> {
+export async function getMeals(profileId:string, days=14): Promise<Meal[]> {
   const since = new Date();
-  since.setDate(since.getDate() - 30);
+  since.setDate(since.getDate() - days);
   const sinceISO = since.toISOString().split("T")[0];
   const {data,error} = await supabase.from("meals").select("*")
     .eq("profile_id",profileId)
     .gte("meal_date", sinceISO)
+    .order("meal_date",{ascending:false})
     .order("logged_at",{ascending:false});
   if (error) throw error; return data??[];
 }
