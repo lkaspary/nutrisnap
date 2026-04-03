@@ -333,17 +333,22 @@ export default function TrackerPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // Step 1: load profiles first — show UI immediately
     getProfiles().then(profs => {
       const p = profs.find(x => x.id === userId);
       if (!p) { router.push("/"); return; }
       setProfile(p);
       setReady(true);
-      // Step 2: load meals in background after UI is shown
       getMeals(userId).then(ms => {
         setMeals(ms);
         setMealsReady(true);
+      }).catch(e => {
+        console.error("getMeals error:", JSON.stringify(e));
+        alert("Meals error: " + JSON.stringify(e));
+        setMealsReady(true);
       });
+    }).catch(e => {
+      console.error("getProfiles error:", JSON.stringify(e));
+      alert("Profiles error: " + JSON.stringify(e));
     });
   }, [userId, router]);
 
