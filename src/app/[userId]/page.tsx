@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { getProfiles, getMeals, addMeal, deleteMeal, updateMeal, type Profile, type Meal } from "@/lib/db";
+import { getProfiles, getMeals, getMealsSince, addMeal, deleteMeal, updateMeal, type Profile, type Meal } from "@/lib/db";
 import { sumMacros, todayISO, getLast7Days, fmtShort, fmtWeek, fmtMonth, getWeekStart, DAILY_GOAL, PROTEIN_GOAL } from "@/lib/utils";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -340,7 +340,7 @@ export default function TrackerPage() {
       setProfile(p);
       setReady(true);
       // Step 2: load meals in background after UI is shown
-      getMeals(userId, 14).then(ms => {
+      getMeals(userId).then(ms => {
         setMeals(ms);
         setMealsReady(true);
       });
@@ -350,7 +350,7 @@ export default function TrackerPage() {
   const loadMoreMeals = async () => {
     setLoadingMore(true);
     const moreDays = daysLoaded + 30;
-    const ms = await getMeals(userId, moreDays);
+    const ms = await getMealsSince(userId, moreDays);
     setMeals(ms);
     setDaysLoaded(moreDays);
     setLoadingMore(false);
