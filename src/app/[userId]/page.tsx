@@ -341,15 +341,8 @@ export default function TrackerPage() {
       getMeals(userId).then(ms => {
         setMeals(ms);
         setMealsReady(true);
-      }).catch(e => {
-        console.error("getMeals error:", JSON.stringify(e));
-        alert("Meals error: " + JSON.stringify(e));
-        setMealsReady(true);
-      });
-    }).catch(e => {
-      console.error("getProfiles error:", JSON.stringify(e));
-      alert("Profiles error: " + JSON.stringify(e));
-    });
+      }).catch(() => setMealsReady(true));
+    }).catch(() => router.push("/"));
   }, [userId, router]);
 
   const loadMoreMeals = async () => {

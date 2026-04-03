@@ -52,7 +52,7 @@ export async function deleteProfile(id: string): Promise<void> {
 export async function getMeals(profileId: string): Promise<Meal[]> {
   const { data, error } = await supabase
     .from("meals")
-    .select("*")
+    .select("id,profile_id,name,calories,protein,carbs,fat,meal_date,logged_at,serving_size,confidence,source,notes")
     .eq("profile_id", profileId)
     .order("logged_at", { ascending: false })
     .limit(20);
