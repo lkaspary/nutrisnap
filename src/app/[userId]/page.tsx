@@ -405,6 +405,7 @@ export default function TrackerPage() {
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [chartType, setChartType] = useState<ChartType>("calories");
   const fileRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   // Meal time & type for the pending add
   const [pendingMealTime, setPendingMealTime] = useState<Date>(() => floorTo30(new Date()));
@@ -700,15 +701,30 @@ export default function TrackerPage() {
                   </button>
                 </div>
               ) : !preview ? (
-                <div onClick={() => fileRef.current?.click()}
+                <div
                   onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
                   onDragOver={e => e.preventDefault()}
-                  className="border border-dashed border-gray-300 dark:border-zinc-600 rounded-2xl p-10 text-center cursor-pointer hover:border-gray-400 transition-colors">
+                  className="border border-dashed border-gray-300 dark:border-zinc-600 rounded-2xl p-6 text-center">
                   <div className="text-4xl mb-2">{modeConfig[inputMode].icon}</div>
-                  <p className="text-sm font-medium">
+                  <p className="text-sm font-medium mb-4">
                     {inputMode === "label" ? "Scan nutrition label" : "Upload meal photo"}
                   </p>
-                  <p className="text-xs text-gray-400 mt-1">Drag & drop or click to browse</p>
+                  <div className="flex gap-2">
+                    <button onClick={() => cameraRef.current?.click()}
+                      className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                      <span className="text-xl">📷</span>
+                      <span className="text-xs text-gray-500">Take photo</span>
+                    </button>
+                    <button onClick={() => fileRef.current?.click()}
+                      className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                      <span className="text-xl">🖼️</span>
+                      <span className="text-xs text-gray-500">Choose from gallery</span>
+                    </button>
+                  </div>
+                  {/* Camera input */}
+                  <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                    onChange={e => e.target.files && handleFile(e.target.files[0])} />
+                  {/* Gallery input */}
                   <input ref={fileRef} type="file" accept="image/*" className="hidden"
                     onChange={e => e.target.files && handleFile(e.target.files[0])} />
                 </div>
