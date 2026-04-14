@@ -14,17 +14,27 @@ import {
 // ── helpers ───────────────────────────────────────────────────────────────────
 function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onload = e => {
-      const dataUrl = e.target!.result as string;
-      res({ base64: dataUrl.split(",")[1], mimeType: dataUrl.split(":")[1].split(";")[0] });
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const MAX = 800;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext("2d")!;
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+      URL.revokeObjectURL(url);
+      res({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
     };
-    r.onerror = rej;
-    r.readAsDataURL(file);
+    img.onerror = rej;
+    img.src = url;
   });
 }
 
-/** Round a Date to the nearest 30-minute mark (floor). */
 function floorTo30(d: Date): Date {
   const out = new Date(d);
   out.setSeconds(0, 0);
@@ -32,17 +42,14 @@ function floorTo30(d: Date): Date {
   return out;
 }
 
-/** Format a Date as HH:MM for display */
 function fmtTime(d: Date): string {
   return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
-/** Add or subtract 30 minutes */
 function shiftMinutes(d: Date, delta: number): Date {
   return new Date(d.getTime() + delta * 60_000);
 }
 
-/** Auto-suggest meal type from hour */
 function suggestMealType(d: Date): MealType {
   const h = d.getHours();
   if (h < 10) return "breakfast";
@@ -86,14 +93,11 @@ function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
 function MealTimeEditor({
   mealTime, mealType, onChange, onTypeChange,
 }: {
-  mealTime: Date;
-  mealType: MealType;
-  onChange: (d: Date) => void;
-  onTypeChange: (t: MealType) => void;
+  mealTime: Date; mealType: MealType;
+  onChange: (d: Date) => void; onTypeChange: (t: MealType) => void;
 }) {
   return (
     <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
-      {/* Meal type */}
       <p className="text-xs font-medium text-gray-400 mb-2">Meal type</p>
       <div className="grid grid-cols-4 gap-1.5 mb-3">
         {MEAL_TYPES.map(({ key, label, emoji }) => {
@@ -112,19 +116,13 @@ function MealTimeEditor({
           );
         })}
       </div>
-
-      {/* Time picker */}
       <p className="text-xs font-medium text-gray-400 mb-2">Meal time</p>
       <div className="flex items-center justify-between bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
         <button onClick={() => onChange(shiftMinutes(mealTime, -30))}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 text-lg font-light transition-colors">
-          −
-        </button>
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">−</button>
         <span className="text-sm font-semibold tabular-nums">{fmtTime(mealTime)}</span>
         <button onClick={() => onChange(shiftMinutes(mealTime, 30))}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 dark:hover:bg-zinc-800 text-lg font-light transition-colors">
-          +
-        </button>
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
       </div>
     </div>
   );
@@ -132,23 +130,18 @@ function MealTimeEditor({
 
 // ── BarChart ──────────────────────────────────────────────────────────────────
 type ChartType = "calories" | "protein";
-function BarChart({
-  meals, type, onBarClick,
-}: { meals: Meal[]; type: ChartType; onBarClick: () => void }) {
+function BarChart({ meals, type, onBarClick }: { meals: Meal[]; type: ChartType; onBarClick: () => void }) {
   const [showAvg, setShowAvg] = useState(false);
   const days = getLast7Days();
   const goal = type === "calories" ? DAILY_GOAL : PROTEIN_GOAL;
   const color = type === "calories" ? "var(--cal)" : "var(--prot)";
-
   const data = days.map(date => {
     const dayMeals = meals.filter(m => m.meal_date === date);
     return { date, value: sumMacros(dayMeals)[type] };
   });
-
-  const avg = Math.round(data.reduce((s, d) => s + d.value, 0) / data.filter(d => d.value > 0).length || 0);
+  const avg = Math.round(data.reduce((s, d) => s + d.value, 0) / (data.filter(d => d.value > 0).length || 1));
   const displayGoal = showAvg ? avg : goal;
   const maxVal = Math.max(...data.map(d => d.value), displayGoal);
-
   const today = todayISO();
   return (
     <div>
@@ -157,12 +150,12 @@ function BarChart({
           {type === "calories" ? "Calories" : "Protein"} — last 7 days
         </p>
         <button onClick={() => setShowAvg(p => !p)}
-          className="text-xs px-2.5 py-1 rounded-full border border-gray-200 dark:border-zinc-600 text-gray-400 hover:text-gray-600 transition-colors">
+          className="text-xs px-2.5 py-1 rounded-full border border-gray-200 dark:border-zinc-600 text-gray-400 hover:text-gray-600">
           {showAvg ? "vs goal" : "vs avg"}
         </button>
       </div>
       <div className="flex gap-1 items-end h-28 cursor-pointer" onClick={onBarClick}>
-        {data.map((d, i) => {
+        {data.map((d) => {
           const isToday = d.date === today;
           const barH = maxVal > 0 ? Math.round((d.value / maxVal) * 96) : 0;
           const goalH = Math.round((displayGoal / maxVal) * 96);
@@ -174,7 +167,7 @@ function BarChart({
                   {d.value}
                 </span>
               )}
-              <div className="w-full rounded-t-md transition-all"
+              <div className="w-full rounded-t-md"
                 style={{ height: barH, background: color, opacity: isToday ? 1 : 0.5, border: isToday ? `1.5px solid ${color}` : "none" }} />
             </div>
           );
@@ -195,11 +188,9 @@ function BarChart({
 // ── AnalyticsTable ────────────────────────────────────────────────────────────
 function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void }) {
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
-
   const rows = useMemo(() => {
     const byDate: Record<string, Meal[]> = {};
     meals.forEach(m => { byDate[m.meal_date] = byDate[m.meal_date] || []; byDate[m.meal_date].push(m); });
-
     if (period === "day") {
       return Object.entries(byDate)
         .map(([date, ms]) => ({ key: date, label: fmtShort(date), ...sumMacros(ms), days: 1 }))
@@ -228,12 +219,10 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
       return { key: mk, label: fmtMonth(dates[0]), calories: Math.round(s.calories / n), protein: Math.round(s.protein / n), carbs: Math.round(s.carbs / n), fat: Math.round(s.fat / n), days: n };
     }).sort((a, b) => b.key.localeCompare(a.key));
   }, [meals, period]);
-
   const isAvg = period !== "day";
   const avg = rows.length > 1
     ? { calories: Math.round(rows.reduce((s, r) => s + r.calories, 0) / rows.length), protein: Math.round(rows.reduce((s, r) => s + r.protein, 0) / rows.length), carbs: Math.round(rows.reduce((s, r) => s + r.carbs, 0) / rows.length), fat: Math.round(rows.reduce((s, r) => s + r.fat, 0) / rows.length) }
     : null;
-
   return (
     <div className="mt-4 border border-gray-200 dark:border-zinc-700 rounded-2xl overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-zinc-700">
@@ -300,7 +289,6 @@ function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => v
     return Array.from(seen.values());
   }, [meals]);
   const filtered = q.trim() ? unique.filter(m => m.name.toLowerCase().includes(q.toLowerCase())) : unique.slice(0, 8);
-
   return (
     <div className="mb-4">
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search previously logged foods…"
@@ -361,14 +349,9 @@ function MealCard({ meal: m, onDelete }: { meal: Meal; onDelete: (id: string) =>
 }
 
 // ── DayLoggedButton ───────────────────────────────────────────────────────────
-function DayLoggedButton({ date, confirmed, onToggle }: {
-  date: string;
-  confirmed: boolean;
-  onToggle: () => void;
-}) {
+function DayLoggedButton({ confirmed, onToggle }: { confirmed: boolean; onToggle: () => void }) {
   return (
-    <button
-      onClick={onToggle}
+    <button onClick={onToggle}
       className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all mt-4"
       style={{
         borderColor: confirmed ? "#22C55E" : "#e5e7eb",
@@ -391,7 +374,7 @@ export default function TrackerPage() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [ready, setReady] = useState(false);
 
-  const [tab, setTab] = useState<"today" | "history" | "add" | "charts">("today");
+  const [tab, setTab] = useState<"today" | "history" | "add">("today");
   const [inputMode, setInputMode] = useState<"meal" | "label" | "text">("text");
   const [textInput, setTextInput] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -407,11 +390,8 @@ export default function TrackerPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
-  // Meal time & type for the pending add
   const [pendingMealTime, setPendingMealTime] = useState<Date>(() => floorTo30(new Date()));
   const [pendingMealType, setPendingMealType] = useState<MealType>(() => suggestMealType(new Date()));
-
-  // Day-confirmed state — persisted per date in localStorage key "dayConfirmed"
   const [dayConfirmed, setDayConfirmed] = useState(false);
   const today = todayISO();
 
@@ -423,29 +403,20 @@ export default function TrackerPage() {
   const toggleDayConfirmed = () => {
     const next = !dayConfirmed;
     setDayConfirmed(next);
-    if (next) {
-      localStorage.setItem(`dayConfirmed:${userId}`, today);
-    } else {
-      localStorage.removeItem(`dayConfirmed:${userId}`);
-    }
+    if (next) localStorage.setItem(`dayConfirmed:${userId}`, today);
+    else localStorage.removeItem(`dayConfirmed:${userId}`);
   };
 
   useEffect(() => {
-    (async () => {
-      const profiles = await getProfiles();
-      const p = profiles.find(x => x.id === userId);
+    getProfiles().then(profs => {
+      const p = profs.find(x => x.id === userId);
       if (!p) { router.push("/"); return; }
       setProfile(p);
-      const ms = await getMeals(userId);
-      setMeals(ms);
       setReady(true);
-    })();
+      getMeals(userId).then(ms => setMeals(ms)).catch(() => {});
+    }).catch(() => router.push("/"));
   }, [userId, router]);
 
-  const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
-  const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
-
-  // Reset pending time/type each time user opens "add" tab
   useEffect(() => {
     if (tab === "add") {
       const now = new Date();
@@ -454,15 +425,15 @@ export default function TrackerPage() {
     }
   }, [tab]);
 
+  const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
+  const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
+
   const handleAddMeal = useCallback(async (
     result: Omit<Meal, "id" | "logged_at" | "profile_id" | "image_url" | "meal_date" | "meal_type" | "meal_time">,
-    imgUrl?: string,
-    mealType?: MealType,
-    mealTime?: Date,
+    imgUrl?: string, mealType?: MealType, mealTime?: Date,
   ) => {
     const saved = await addMeal({
-      ...result,
-      profile_id: userId,
+      ...result, profile_id: userId,
       image_url: imgUrl ?? null,
       meal_date: today,
       meal_type: mealType ?? pendingMealType,
@@ -512,7 +483,6 @@ export default function TrackerPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: inputMode, text: textInput, base64: b64, mimeType: mime }),
       }).then(r => r.json());
-
       if (check.needsClarification) {
         setClar({ question: check.question, options: check.options });
         setLoading(false);
@@ -533,6 +503,7 @@ export default function TrackerPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar }),
       }).then(r => r.json());
+      if (result.error) { setError(result.error); setLoading(false); return; }
       const imgUrl = mode !== "text" && preview ? preview : undefined;
       await handleAddMeal(result, imgUrl, pendingMealType, pendingMealTime);
     } catch { setError("Could not estimate. Try again."); }
@@ -546,12 +517,21 @@ export default function TrackerPage() {
   } as const;
 
   if (!ready) return (
-    <div className="flex items-center justify-center min-h-screen">
-      <p className="text-gray-400">Loading…</p>
+    <div className="max-w-md mx-auto px-4 pb-16 pt-4">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <div className="h-6 w-36 bg-gray-200 dark:bg-zinc-700 rounded animate-pulse mb-1" />
+          <div className="h-3 w-28 bg-gray-100 dark:bg-zinc-800 rounded animate-pulse" />
+        </div>
+        <div className="w-24 h-9 bg-gray-200 dark:bg-zinc-700 rounded-full animate-pulse" />
+      </div>
+      <div className="h-32 bg-gray-100 dark:bg-zinc-800 rounded-2xl animate-pulse mb-4" />
+      <div className="h-48 bg-gray-100 dark:bg-zinc-800 rounded-2xl animate-pulse mb-4" />
     </div>
   );
 
   const todayStr = new Date().toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  const canSubmit = pendingFile || textInput.trim().length > 0;
 
   return (
     <div className="max-w-md mx-auto px-4 pb-16 pt-4">
@@ -588,7 +568,6 @@ export default function TrackerPage() {
               </div>
             ))}
           </div>
-          {/* Protein bar */}
           <div className="bg-gray-100 dark:bg-zinc-700 rounded-full h-1.5 overflow-hidden">
             <div className="h-full rounded-full transition-all"
               style={{ width: `${Math.min((totals.protein / PROTEIN_GOAL) * 100, 100)}%`, background: "var(--prot)" }} />
@@ -633,7 +612,7 @@ export default function TrackerPage() {
               </div>
             : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} />)}
           {todayMeals.length > 0 && (
-            <DayLoggedButton date={today} confirmed={dayConfirmed} onToggle={toggleDayConfirmed} />
+            <DayLoggedButton confirmed={dayConfirmed} onToggle={toggleDayConfirmed} />
           )}
         </div>
       )}
@@ -641,10 +620,9 @@ export default function TrackerPage() {
       {/* Add meal */}
       {tab === "add" && (
         <div>
-          <p className="text-xs font-medium text-gray-400 mb-2">Recent foods</p>
-          <FoodSearch meals={meals} onRelog={handleRelog} />
+          <p className="text-xs font-medium text-gray-400 mb-2">Add new</p>
 
-          <p className="text-xs font-medium text-gray-400 mb-2 mt-4">Add new</p>
+          {/* Mode selector */}
           <div className="flex gap-2 mb-4">
             {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
               <button key={key} onClick={() => { setInputMode(key); resetAdd(); }}
@@ -660,22 +638,20 @@ export default function TrackerPage() {
             ))}
           </div>
 
-          {/* Meal type + time picker — always visible in Add tab */}
+          {/* Meal type + time */}
           <MealTimeEditor
-            mealTime={pendingMealTime}
-            mealType={pendingMealType}
-            onChange={setPendingMealTime}
-            onTypeChange={setPendingMealType}
+            mealTime={pendingMealTime} mealType={pendingMealType}
+            onChange={setPendingMealTime} onTypeChange={setPendingMealType}
           />
 
+          {/* Clarification */}
           {clarification && !loading && (
             <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
               <p className="text-sm font-medium mb-2">One quick question:</p>
               <p className="text-sm mb-3">{clarification.question}</p>
               <div className="space-y-2">
                 {clarification.options.map(opt => (
-                  <button key={opt}
-                    onClick={() => runFinal(textInput, inputMode, opt, pendingB64, pendingMime)}
+                  <button key={opt} onClick={() => runFinal(textInput, inputMode, opt, pendingB64, pendingMime)}
                     className="w-full text-left text-sm px-4 py-2.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-600 rounded-xl hover:bg-gray-50">
                     {opt}
                   </button>
@@ -689,65 +665,84 @@ export default function TrackerPage() {
           )}
 
           {!clarification && (
-            <>
-              {inputMode === "text" ? (
-                <div>
-                  <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
-                    placeholder="e.g. 'Two scrambled eggs with toast' or 'McDonald's Big Mac meal'" rows={3}
-                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none mb-2" />
-                  <button onClick={startAnalysis} disabled={loading || !textInput.trim()}
-                    className="w-full bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
-                    {loading ? loadingMsg : "Search & estimate calories"}
-                  </button>
-                </div>
-              ) : !preview ? (
-                <div
-                  onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
-                  onDragOver={e => e.preventDefault()}
-                  className="border border-dashed border-gray-300 dark:border-zinc-600 rounded-2xl p-6 text-center">
-                  <div className="text-4xl mb-2">{modeConfig[inputMode].icon}</div>
-                  <p className="text-sm font-medium mb-4">
-                    {inputMode === "label" ? "Scan nutrition label" : "Upload meal photo"}
-                  </p>
-                  <div className="flex gap-2">
-                    <button onClick={() => cameraRef.current?.click()}
-                      className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-                      <span className="text-xl">📷</span>
-                      <span className="text-xs text-gray-500">Take photo</span>
-                    </button>
-                    <button onClick={() => fileRef.current?.click()}
-                      className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-                      <span className="text-xl">🖼️</span>
-                      <span className="text-xs text-gray-500">Choose from gallery</span>
-                    </button>
+            <div className="space-y-3">
+              {/* Photo upload area */}
+              {inputMode !== "text" && (
+                !preview ? (
+                  <div onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
+                    onDragOver={e => e.preventDefault()}
+                    className="border border-dashed border-gray-300 dark:border-zinc-600 rounded-2xl p-6 text-center">
+                    <div className="text-4xl mb-2">{modeConfig[inputMode].icon}</div>
+                    <p className="text-sm font-medium mb-4">
+                      {inputMode === "label" ? "Scan nutrition label" : "Upload meal photo"}
+                    </p>
+                    <div className="flex gap-2">
+                      <button onClick={() => cameraRef.current?.click()}
+                        className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                        <span className="text-xl">📷</span>
+                        <span className="text-xs text-gray-500">Take photo</span>
+                      </button>
+                      <button onClick={() => fileRef.current?.click()}
+                        className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                        <span className="text-xl">🖼️</span>
+                        <span className="text-xs text-gray-500">Choose from gallery</span>
+                      </button>
+                    </div>
+                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
+                      onChange={e => e.target.files && handleFile(e.target.files[0])} />
+                    <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                      onChange={e => e.target.files && handleFile(e.target.files[0])} />
                   </div>
-                  {/* Camera input */}
-                  <input ref={cameraRef} type="file" accept="image/*" capture="environment" className="hidden"
-                    onChange={e => e.target.files && handleFile(e.target.files[0])} />
-                  {/* Gallery input */}
-                  <input ref={fileRef} type="file" accept="image/*" className="hidden"
-                    onChange={e => e.target.files && handleFile(e.target.files[0])} />
-                </div>
-              ) : (
-                <div>
-                  <img src={preview} alt="preview" className="w-full rounded-2xl max-h-60 object-cover mb-2" />
-                  <div className="flex gap-2">
-                    <button onClick={resetAdd}
-                      className="flex-1 border border-gray-200 rounded-xl py-2 text-sm text-gray-400">
-                      Cancel
-                    </button>
-                    <button onClick={startAnalysis} disabled={loading}
-                      className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-                      {loading ? loadingMsg : inputMode === "label" ? "Read label" : "Analyze photo"}
-                    </button>
+                ) : (
+                  <div className="relative">
+                    <img src={preview} alt="preview" className="w-full rounded-2xl max-h-52 object-cover" />
+                    <button onClick={() => { setPreview(null); setPendingFile(null); }}
+                      className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm">✕</button>
                   </div>
-                </div>
+                )
               )}
-            </>
+
+              {/* Text input for text mode */}
+              {inputMode === "text" && (
+                <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
+                  placeholder="e.g. 'Two scrambled eggs with toast' or 'McDonald's Big Mac meal'" rows={3}
+                  className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
+              )}
+
+              {/* Description field for photo/label modes — always visible */}
+              {inputMode !== "text" && (
+                <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
+                  placeholder={inputMode === "label"
+                    ? "Optional: describe the product or number of servings (e.g. '2 servings of Greek yogurt')"
+                    : "Optional: describe the meal to improve accuracy (e.g. 'grilled salmon with steamed broccoli and brown rice')"}
+                  rows={2}
+                  className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
+              )}
+
+              {/* Submit */}
+              <div className="flex gap-2">
+                {(preview || textInput.trim()) && (
+                  <button onClick={resetAdd}
+                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">
+                    Cancel
+                  </button>
+                )}
+                <button onClick={startAnalysis} disabled={loading || !canSubmit}
+                  className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                  {loading ? loadingMsg : inputMode === "label" ? "Read label" : inputMode === "meal" ? "Analyze photo" : "Search & estimate"}
+                </button>
+              </div>
+            </div>
           )}
 
           {loading && <p className="text-center text-sm text-gray-400 mt-3">⏳ {loadingMsg}</p>}
           {error   && <p className="text-red-500 text-sm mt-2">{error}</p>}
+
+          {/* Recent foods moved to bottom of Add tab */}
+          <div className="mt-6">
+            <p className="text-xs font-medium text-gray-400 mb-2">Recent foods</p>
+            <FoodSearch meals={meals} onRelog={handleRelog} />
+          </div>
         </div>
       )}
 
@@ -765,13 +760,10 @@ export default function TrackerPage() {
                   return (
                     <div key={date} className="mb-5">
                       <div className="flex justify-between items-center mb-2">
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-                          {fmtShort(date)}
-                        </p>
+                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{fmtShort(date)}</p>
                         <p className="text-xs text-gray-400">
                           <span className="font-medium" style={{ color: "var(--cal)" }}>{dt.calories}</span> kcal ·{" "}
-                          P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> ·{" "}
-                          C: {dt.carbs}g · F: {dt.fat}g
+                          P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> · C: {dt.carbs}g · F: {dt.fat}g
                         </p>
                       </div>
                       {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} />)}
