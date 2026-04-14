@@ -332,13 +332,60 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 
   const handleSave = async () => {
     setSaving(true);
-    onUpdate(m.id, {
-      notes: editNotes,
-      meal_type: editType,
-      meal_time: editTime.toISOString(),
-    });
-    setEditing(false);
-    setSaving(false);
+    try {
+      const notesChanged = editNotes !== (m.notes ?? "");
+
+      if (notesChanged) {
+        // Re-run AI analysis with updated notes as extra context
+        const res = await fetch("/api/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            mode: "text",
+            text: `${m.name}. Additional details: ${editNotes}`,
+            base64: null,
+            mimeType: null,
+            clarification: null,
+          }),
+        }).then(r => r.json());
+
+        if (!res.error) {
+          onUpdate(m.id, {
+            calories: res.calories,
+            protein: res.protein,
+            carbs: res.carbs,
+            fat: res.fat,
+            serving_size: res.serving_size ?? m.serving_size,
+            notes: editNotes,
+            meal_type: editType,
+            meal_time: editTime.toISOString(),
+          });
+        } else {
+          // AI failed — save everything except macros
+          onUpdate(m.id, {
+            notes: editNotes,
+            meal_type: editType,
+            meal_time: editTime.toISOString(),
+          });
+        }
+      } else {
+        // Just save type and time
+        onUpdate(m.id, {
+          meal_type: editType,
+          meal_time: editTime.toISOString(),
+        });
+      }
+      setEditing(false);
+    } catch {
+      onUpdate(m.id, {
+        notes: editNotes,
+        meal_type: editType,
+        meal_time: editTime.toISOString(),
+      });
+      setEditing(false);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -429,7 +476,9 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
             </button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-              {saving ? "Saving…" : "Save changes"}
+              {saving
+                ? editNotes !== (m.notes ?? "") ? "Re-analyzing…" : "Saving…"
+                : "Save changes"}
             </button>
           </div>
         </div>
