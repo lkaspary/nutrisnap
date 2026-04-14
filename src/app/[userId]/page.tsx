@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams } from "next/navigation";
 import {
-  getProfiles, getMeals, addMeal, deleteMeal,
+  getProfiles, getMeals, addMeal, deleteMeal, updateMeal,
   type Profile, type Meal, type MealType,
 } from "@/lib/db";
 import {
@@ -316,34 +316,124 @@ function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => v
 }
 
 // ── MealCard ──────────────────────────────────────────────────────────────────
-function MealCard({ meal: m, onDelete }: { meal: Meal; onDelete: (id: string) => void }) {
+function MealCard({ meal: m, onDelete, onUpdate }: {
+  meal: Meal;
+  onDelete: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<Meal>) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [editNotes, setEditNotes] = useState(m.notes ?? "");
+  const [editType, setEditType] = useState<MealType>(m.meal_type);
+  const [editTime, setEditTime] = useState<Date>(() => new Date(m.meal_time || m.logged_at));
+  const [saving, setSaving] = useState(false);
+
   const time = new Date(m.meal_time || m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const typeInfo = MEAL_TYPES.find(t => t.key === m.meal_type);
+
+  const handleSave = async () => {
+    setSaving(true);
+    onUpdate(m.id, {
+      notes: editNotes,
+      meal_type: editType,
+      meal_time: editTime.toISOString(),
+    });
+    setEditing(false);
+    setSaving(false);
+  };
+
   return (
-    <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 mb-2 flex items-center gap-3">
-      {m.image_url ? (
-        <img src={m.image_url} alt={m.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
-      ) : (
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 bg-gray-50 dark:bg-zinc-800">
-          {typeInfo?.emoji ?? "🍽️"}
+    <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 mb-2">
+      {/* Main row */}
+      <div className="flex items-center gap-3">
+        {m.image_url ? (
+          <img src={m.image_url} alt={m.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
+        ) : (
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 bg-gray-50 dark:bg-zinc-800">
+            {typeInfo?.emoji ?? "🍽️"}
+          </div>
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate">{m.name}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            {typeInfo && (
+              <span className="text-xs font-medium px-1.5 py-0.5 rounded-md"
+                style={{ background: MEAL_TYPE_COLORS[m.meal_type] + "18", color: MEAL_TYPE_COLORS[m.meal_type] }}>
+                {typeInfo.label}
+              </span>
+            )}
+            <p className="text-xs text-gray-400">{time} · P: {m.protein}g</p>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <p className="text-sm font-semibold" style={{ color: "var(--cal)" }}>{m.calories} kcal</p>
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(e => !e)} className="text-xs text-gray-300 hover:text-blue-400 transition-colors">✏️</button>
+            <button onClick={() => onDelete(m.id)} className="text-xs text-gray-300 hover:text-red-400 transition-colors">✕</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Edit panel */}
+      {editing && (
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-zinc-800 space-y-3">
+          {/* Meal type */}
+          <div>
+            <p className="text-xs text-gray-400 mb-1.5">Meal type</p>
+            <div className="grid grid-cols-4 gap-1.5">
+              {MEAL_TYPES.map(({ key, label, emoji }) => {
+                const active = editType === key;
+                return (
+                  <button key={key} onClick={() => setEditType(key)}
+                    className="flex flex-col items-center py-1.5 rounded-xl border text-xs transition-all"
+                    style={{
+                      background: active ? MEAL_TYPE_COLORS[key] + "18" : "transparent",
+                      borderColor: active ? MEAL_TYPE_COLORS[key] : "#e5e7eb",
+                      color: active ? MEAL_TYPE_COLORS[key] : "#9ca3af",
+                      fontWeight: active ? 600 : 400,
+                    }}>
+                    <span className="text-sm mb-0.5">{emoji}</span>{label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Time */}
+          <div>
+            <p className="text-xs text-gray-400 mb-1.5">Meal time</p>
+            <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
+              <button onClick={() => setEditTime(d => new Date(d.getTime() - 30 * 60000))}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">−</button>
+              <span className="text-sm font-semibold tabular-nums">
+                {editTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              <button onClick={() => setEditTime(d => new Date(d.getTime() + 30 * 60000))}
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
+            </div>
+          </div>
+
+          {/* Notes / description */}
+          <div>
+            <p className="text-xs text-gray-400 mb-1.5">Notes / description</p>
+            <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
+              placeholder="Add details to improve identification (e.g. 'grilled, no sauce, large portion')"
+              rows={2}
+              className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
+          </div>
+
+          {/* Save / cancel */}
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)}
+              className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">
+              Cancel
+            </button>
+            <button onClick={handleSave} disabled={saving}
+              className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
+              {saving ? "Saving…" : "Save changes"}
+            </button>
+          </div>
         </div>
       )}
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium truncate">{m.name}</p>
-        <div className="flex items-center gap-1.5 mt-0.5">
-          {typeInfo && (
-            <span className="text-xs font-medium px-1.5 py-0.5 rounded-md"
-              style={{ background: MEAL_TYPE_COLORS[m.meal_type] + "18", color: MEAL_TYPE_COLORS[m.meal_type] }}>
-              {typeInfo.label}
-            </span>
-          )}
-          <p className="text-xs text-gray-400">{time} · P: {m.protein}g</p>
-        </div>
-      </div>
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <p className="text-sm font-semibold" style={{ color: "var(--cal)" }}>{m.calories} kcal</p>
-        <button onClick={() => onDelete(m.id)} className="text-xs text-gray-300 hover:text-red-400 transition-colors">✕</button>
-      </div>
     </div>
   );
 }
@@ -448,6 +538,11 @@ export default function TrackerPage() {
   const handleDeleteMeal = useCallback(async (id: string) => {
     await deleteMeal(id);
     setMeals(prev => prev.filter(m => m.id !== id));
+  }, []);
+
+  const handleUpdateMeal = useCallback(async (id: string, updates: Partial<Meal>) => {
+    const updated = await updateMeal(id, updates);
+    setMeals(prev => prev.map(m => m.id === id ? updated : m));
   }, []);
 
   const handleRelog = useCallback((m: Meal) => {
@@ -610,7 +705,7 @@ export default function TrackerPage() {
                 No meals today.{" "}
                 <button onClick={() => setTab("add")} className="text-blue-400">Add one →</button>
               </div>
-            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} />)}
+            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} />)}
           {todayMeals.length > 0 && (
             <DayLoggedButton confirmed={dayConfirmed} onToggle={toggleDayConfirmed} />
           )}
@@ -766,7 +861,7 @@ export default function TrackerPage() {
                           P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> · C: {dt.carbs}g · F: {dt.fat}g
                         </p>
                       </div>
-                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} />)}
+                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} />)}
                     </div>
                   );
                 })}

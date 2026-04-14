@@ -25,10 +25,10 @@ export interface Meal {
   notes: string;
   serving_size: string;
   image_url: string | null;
-  meal_date: string;          // YYYY-MM-DD
-  meal_type: MealType;        // breakfast | lunch | snack | dinner
-  meal_time: string;          // ISO timestamp
-  logged_at: string;          // ISO timestamp (set by DB)
+  meal_date: string;
+  meal_type: MealType;
+  meal_time: string;
+  logged_at: string;
 }
 
 // ── Profiles ──────────────────────────────────────────────────────────────────
@@ -85,19 +85,26 @@ export async function getMealsSince(profileId: string, since: string): Promise<M
   return (data ?? []).map(normalise);
 }
 
-export async function addMeal(
-  meal: Omit<Meal, "id" | "logged_at">
-): Promise<Meal> {
+export async function addMeal(meal: Omit<Meal, "id" | "logged_at">): Promise<Meal> {
   const sb = createClient();
   const { data, error } = await sb.from("meals").insert(meal).select().single();
   if (error) throw error;
   return normalise(data);
 }
 
-export async function updateMealDate(id: string, meal_date: string): Promise<void> {
+export async function updateMeal(
+  id: string,
+  updates: Partial<Pick<Meal, "meal_date" | "meal_type" | "meal_time" | "notes" | "name" | "calories" | "protein" | "carbs" | "fat" | "serving_size">>
+): Promise<Meal> {
   const sb = createClient();
-  const { error } = await sb.from("meals").update({ meal_date }).eq("id", id);
+  const { data, error } = await sb
+    .from("meals")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
   if (error) throw error;
+  return normalise(data);
 }
 
 export async function deleteMeal(id: string): Promise<void> {
@@ -107,7 +114,6 @@ export async function deleteMeal(id: string): Promise<void> {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-// Backfill sensible defaults for rows that predate the new columns
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normalise(row: any): Meal {
   return {
