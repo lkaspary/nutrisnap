@@ -8,6 +8,8 @@ export interface Profile {
   avatar: string;
   avatar_bg: string;
   created_at: string;
+  is_pro: boolean;                  // ← new
+  stripe_customer_id: string | null; // ← new
 }
 
 export type MealType = "breakfast" | "lunch" | "snack" | "dinner";
@@ -36,17 +38,25 @@ export async function getProfiles(): Promise<Profile[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("profiles")
-    .select("id, name, avatar, avatar_bg, created_at")
+    .select("id, name, avatar, avatar_bg, created_at, is_pro, stripe_customer_id") // ← updated
     .order("created_at", { ascending: true });
   if (error) throw error;
-  return data ?? [];
+  return (data ?? []).map(p => ({
+    ...p,
+    is_pro: p.is_pro ?? false,
+    stripe_customer_id: p.stripe_customer_id ?? null,
+  }));
 }
 
-export async function createProfile(p: Omit<Profile, "id" | "created_at">): Promise<Profile> {
+export async function createProfile(p: Omit<Profile, "id" | "created_at" | "is_pro" | "stripe_customer_id">): Promise<Profile> {
   const sb = createClient();
   const { data, error } = await sb.from("profiles").insert(p).select().single();
   if (error) throw error;
-  return data;
+  return {
+    ...data,
+    is_pro: data.is_pro ?? false,
+    stripe_customer_id: data.stripe_customer_id ?? null,
+  };
 }
 
 export async function deleteProfile(id: string): Promise<void> {

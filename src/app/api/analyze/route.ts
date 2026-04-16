@@ -7,7 +7,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const FREE_LIMIT = 5;
 
 async function getSupabase() {
-  const cookieStore = cookies();
+  const cookieStore = await cookies(); // ← await added
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
     const isPro = profile?.is_pro ?? false;
 
     if (!isPro) {
-      // Get or create today's usage row
       const { data: usage } = await supabase
         .from("usage")
         .select("ai_calls")
@@ -53,6 +52,8 @@ export async function POST(req: NextRequest) {
 
       if (currentCalls >= FREE_LIMIT) {
         return NextResponse.json({
+          limitReached: true,  // ← matches what page.tsx checks
+          usageCount: currentCalls,
           error: "FREE_LIMIT_REACHED",
           message: `You've used your ${FREE_LIMIT} free AI analyses today. Upgrade to Pro for unlimited!`,
           used: currentCalls,
@@ -60,7 +61,6 @@ export async function POST(req: NextRequest) {
         }, { status: 429 });
       }
 
-      // Increment usage
       await supabase.from("usage").upsert({
         profile_id: profileId,
         date: today,

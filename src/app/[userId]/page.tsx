@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
   getProfiles, getMeals, addMeal, deleteMeal, updateMeal,
   type Profile, type Meal, type MealType,
@@ -86,14 +86,10 @@ function exportMealsCSV(meals: Meal[], profileName: string) {
       new Date(m.meal_time || m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       m.meal_type ?? "",
       `"${(m.name ?? "").replace(/"/g, '""')}"`,
-      m.calories,
-      m.protein,
-      m.carbs,
-      m.fat,
+      m.calories, m.protein, m.carbs, m.fat,
       `"${(m.serving_size ?? "").replace(/"/g, '""')}"`,
       `"${(m.notes ?? "").replace(/"/g, '""')}"`,
-      m.source ?? "",
-      m.confidence ?? "",
+      m.source ?? "", m.confidence ?? "",
     ]);
   const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -372,18 +368,15 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            mode: "text",
-            text: `${m.name}. Additional details: ${editNotes}`,
+            mode: "text", text: `${m.name}. Additional details: ${editNotes}`,
             base64: null, mimeType: null, clarification: null,
           }),
         }).then(r => r.json());
         if (!res.error) {
           onUpdate(m.id, {
-            calories: res.calories, protein: res.protein,
-            carbs: res.carbs, fat: res.fat,
+            calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
             serving_size: res.serving_size ?? m.serving_size,
-            notes: editNotes, meal_type: editType,
-            meal_time: editTime.toISOString(),
+            notes: editNotes, meal_type: editType, meal_time: editTime.toISOString(),
           });
         } else {
           onUpdate(m.id, { notes: editNotes, meal_type: editType, meal_time: editTime.toISOString() });
@@ -395,9 +388,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
     } catch {
       onUpdate(m.id, { notes: editNotes, meal_type: editType, meal_time: editTime.toISOString() });
       setEditing(false);
-    } finally {
-      setSaving(false);
-    }
+    } finally { setSaving(false); }
   };
 
   return (
@@ -430,7 +421,6 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           </div>
         </div>
       </div>
-
       {editing && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-zinc-800 space-y-3">
           <div>
@@ -474,9 +464,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           </div>
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)}
-              className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">
-              Cancel
-            </button>
+              className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
               {saving ? (editNotes !== (m.notes ?? "") ? "Re-analyzing…" : "Saving…") : "Save changes"}
@@ -510,6 +498,9 @@ function DayLoggedButton({ confirmed, onToggle }: { confirmed: boolean; onToggle
 export default function TrackerPage() {
   const router = useRouter();
   const { userId } = useParams<{ userId: string }>();
+  const searchParams = useSearchParams();                          // ← NEW
+  const justUpgraded = searchParams.get("upgraded") === "true";   // ← NEW
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
   const [ready, setReady] = useState(false);
@@ -616,7 +607,24 @@ export default function TrackerPage() {
     setClar(null); setError(""); setTextInput("");
   };
 
-  // FIX: runFinal declared before startAnalysis so both can reference it
+  // ── Stripe upgrade ────────────────────────────────────────────────────────
+  const handleUpgrade = async (plan: "monthly" | "yearly") => {
+    const priceId = plan === "monthly"
+      ? process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY
+      : process.env.NEXT_PUBLIC_STRIPE_PRICE_YEARLY;
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ priceId, profileId: userId }),
+      }).then(r => r.json());
+      if (res.url) window.location.href = res.url;
+    } catch {
+      setError("Could not start checkout. Try again.");
+    }
+  };
+
+  // ── AI analysis ───────────────────────────────────────────────────────────
   const runFinal = async (
     text: string, mode: string, clar: string | null,
     b64: string | null, mime: string | null,
@@ -626,8 +634,14 @@ export default function TrackerPage() {
     try {
       const result = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar }),
+        body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar, profileId: userId }),
       }).then(r => r.json());
+      if (result.limitReached) {
+        setUsageCount(result.usageCount ?? 5);
+        setShowUpgrade(true);
+        setLoading(false);
+        return;
+      }
       if (result.error) { setError(result.error); setLoading(false); return; }
       const imgUrl = mode !== "text" && preview ? preview : undefined;
       await handleAddMeal(result, imgUrl, pendingMealType, pendingMealTime);
@@ -684,6 +698,17 @@ export default function TrackerPage() {
   return (
     <div className="max-w-md mx-auto px-4 pb-16 pt-4">
 
+      {/* Pro upgrade success banner */}
+      {justUpgraded && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4 mb-4 flex items-center gap-3">
+          <span className="text-2xl">🎉</span>
+          <div>
+            <p className="text-sm font-semibold text-green-700 dark:text-green-400">You're now Pro!</p>
+            <p className="text-xs text-green-600 dark:text-green-500">Unlimited AI analyses unlocked.</p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
@@ -697,6 +722,16 @@ export default function TrackerPage() {
           <span className="text-sm font-medium">{profile!.name}</span>
         </button>
       </div>
+
+      {/* Pro badge if user is pro */}
+      {profile?.is_pro && (
+        <div className="flex items-center gap-1.5 mb-3">
+          <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 border border-blue-200 dark:border-blue-800">
+            ⚡ Pro
+          </span>
+          <span className="text-xs text-gray-400">Unlimited AI analyses</span>
+        </div>
+      )}
 
       {/* Daily summary */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4 flex items-center gap-4">
@@ -844,28 +879,23 @@ export default function TrackerPage() {
                   </div>
                 )
               )}
-
               {inputMode === "text" && (
                 <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                   placeholder="e.g. 'Two scrambled eggs with toast' or 'McDonald's Big Mac meal'" rows={3}
                   className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
               )}
-
               {inputMode !== "text" && (
                 <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                   placeholder={inputMode === "label"
-                    ? "Optional: describe the product or number of servings (e.g. '2 servings of Greek yogurt')"
-                    : "Optional: describe the meal to improve accuracy (e.g. 'grilled salmon with steamed broccoli and brown rice')"}
+                    ? "Optional: describe the product or number of servings"
+                    : "Optional: describe the meal to improve accuracy"}
                   rows={2}
                   className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
               )}
-
               <div className="flex gap-2">
                 {(preview || textInput.trim()) && (
                   <button onClick={resetAdd}
-                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">
-                    Cancel
-                  </button>
+                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
                 )}
                 <button onClick={startAnalysis} disabled={loading || !canSubmit}
                   className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
@@ -878,7 +908,6 @@ export default function TrackerPage() {
           {loading && <p className="text-center text-sm text-gray-400 mt-3">⏳ {loadingMsg}</p>}
           {error   && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
-          {/* Recent foods */}
           <div className="mt-6">
             <p className="text-xs font-medium text-gray-400 mb-2">Recent foods</p>
             <FoodSearch meals={meals} onRelog={handleRelog} />
@@ -893,7 +922,6 @@ export default function TrackerPage() {
         }, {});
         return (
           <div>
-            {/* Export button */}
             <button onClick={() => exportMealsCSV(meals, profile!.name)}
               className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
               <span>📥</span> Export my food log (CSV)
@@ -934,24 +962,23 @@ export default function TrackerPage() {
               </p>
             </div>
             <div className="space-y-3 mb-4">
-              <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-3 flex justify-between items-center">
-                <div>
+              <button onClick={() => handleUpgrade("monthly")}
+                className="w-full bg-gray-50 dark:bg-zinc-800 rounded-xl p-3 flex justify-between items-center hover:bg-gray-100 transition-colors">
+                <div className="text-left">
                   <p className="text-sm font-semibold">Pro Monthly</p>
                   <p className="text-xs text-gray-400">Unlimited AI analyses</p>
                 </div>
                 <p className="text-lg font-bold text-blue-500">$1.99<span className="text-xs font-normal text-gray-400">/mo</span></p>
-              </div>
-              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex justify-between items-center">
-                <div>
+              </button>
+              <button onClick={() => handleUpgrade("yearly")}
+                className="w-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex justify-between items-center hover:bg-blue-100 transition-colors">
+                <div className="text-left">
                   <p className="text-sm font-semibold">Pro Yearly <span className="text-xs text-green-500 font-medium">Save 17%</span></p>
                   <p className="text-xs text-gray-400">Best value</p>
                 </div>
                 <p className="text-lg font-bold text-blue-500">$19.99<span className="text-xs font-normal text-gray-400">/yr</span></p>
-              </div>
+              </button>
             </div>
-            <button className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-colors mb-2">
-              Upgrade to Pro
-            </button>
             <button onClick={() => setShowUpgrade(false)}
               className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
               Maybe later — resets tomorrow
