@@ -1,111 +1,151 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
+
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const FREE_LIMIT = 5;
+
+async function getSupabase() {
+  const cookieStore = cookies();
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll: () => cookieStore.getAll(),
+        setAll: (c) => c.forEach(({ name, value, options }) => cookieStore.set(name, value, options)),
+      },
+    }
+  );
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const {mode,text,base64,mimeType,clarification} = await req.json();
+    const { mode, text, base64, mimeType, clarification, profileId } = await req.json();
+
+    if (!profileId) {
+      return NextResponse.json({ error: "Profile ID required." }, { status: 400 });
+    }
+
+    const supabase = await getSupabase();
+    const today = new Date().toISOString().split("T")[0];
+
+    // Check pro status
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("is_pro")
+      .eq("id", profileId)
+      .single();
+
+    const isPro = profile?.is_pro ?? false;
+
+    if (!isPro) {
+      // Get or create today's usage row
+      const { data: usage } = await supabase
+        .from("usage")
+        .select("ai_calls")
+        .eq("profile_id", profileId)
+        .eq("date", today)
+        .single();
+
+      const currentCalls = usage?.ai_calls ?? 0;
+
+      if (currentCalls >= FREE_LIMIT) {
+        return NextResponse.json({
+          error: "FREE_LIMIT_REACHED",
+          message: `You've used your ${FREE_LIMIT} free AI analyses today. Upgrade to Pro for unlimited!`,
+          used: currentCalls,
+          limit: FREE_LIMIT,
+        }, { status: 429 });
+      }
+
+      // Increment usage
+      await supabase.from("usage").upsert({
+        profile_id: profileId,
+        date: today,
+        ai_calls: currentCalls + 1,
+      }, { onConflict: "profile_id,date" });
+    }
+
+    // ── Run AI analysis ───────────────────────────────────────────────────────
     const imgBlock = base64 && mimeType ? [{
-      type:"image" as const,
-      source:{type:"base64" as const, media_type: mimeType as "image/jpeg"|"image/png"|"image/gif"|"image/webp", data:base64}
+      type: "image" as const,
+      source: { type: "base64" as const, media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp", data: base64 }
     }] : [];
     const clarNote = clarification ? `\nThe user clarified: "${clarification}"` : "";
     const hasImage = imgBlock.length > 0;
     const hasText = text && text.trim().length > 0;
 
     let prompt = "";
-
     if (mode === "label") {
       prompt = `You are a nutrition expert reading a food label image.
-
-Your job is to extract nutritional values from this label. The user may have also added a text description for context.
 ${hasText ? `User note: "${text}"${clarNote}` : clarNote}
-
 Instructions:
-- Try to read the exact values from the label if visible
-- If parts of the label are unclear or cut off, use reasonable estimates based on what you can see and the product type
-- If the user mentioned a number of servings (e.g. "2 servings"), multiply the per-serving values accordingly
-- ALWAYS provide your best estimate — never refuse or say you cannot read the label
-- Use the product name if visible, otherwise describe the food type
-- Set confidence to "high" if label is clearly readable, "medium" if partially unclear
-
-You MUST respond with ONLY this JSON and nothing else:
-{"name":"product name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"serving size from label","confidence":"high"}`;
-
+- Read exact values from the label if visible
+- If unclear, estimate based on what you can see
+- If user mentioned servings, multiply accordingly
+- ALWAYS provide your best estimate
+- Set confidence to "high" if clearly readable, "medium" if partially unclear
+You MUST respond with ONLY this JSON:
+{"name":"product name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"...","confidence":"high"}`;
     } else if (mode === "meal") {
       const textHint = hasText ? `\nThe user described the meal as: "${text}"` : "";
       prompt = `You are a nutrition expert estimating the nutritional content of a meal.
 ${hasImage ? "Analyze the meal photo carefully." : ""}${textHint}${clarNote}
-
 Instructions:
 - Identify every food item visible or described
-- Estimate realistic portion sizes based on visual cues and typical servings
+- Estimate realistic portion sizes
 - Calculate totals for the ENTIRE meal
-- Always provide your best estimate — never refuse
-- When in doubt, use moderate/average portion assumptions
-- If both a photo and description are provided, use both together for best accuracy
-
-You MUST respond with ONLY this JSON and nothing else:
+- Always provide your best estimate
+- Use both photo and description together for best accuracy
+You MUST respond with ONLY this JSON:
 {"name":"descriptive meal name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"full meal","confidence":"medium"}`;
-
     } else if (mode === "text") {
-      const imageHint = hasImage ? "\nThe user also provided a photo for additional context — use it to improve accuracy." : "";
-      prompt = `You are a nutrition expert and registered dietitian estimating nutritional content.
-
+      const imageHint = hasImage ? "\nThe user also provided a photo for additional context." : "";
+      prompt = `You are a nutrition expert estimating nutritional content.
 Food: "${text}"${imageHint}${clarNote}
-
 Instructions:
-- Use USDA data, restaurant nutritional info, or standard food databases
-- If a brand or restaurant is mentioned, use their known nutritional data
-- Always provide a complete estimate — never refuse
-- Use typical portion sizes unless the user specified otherwise
-
-You MUST respond with ONLY this JSON and nothing else:
-{"name":"food name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"serving description","confidence":"medium"}`;
-
+- Use USDA data, restaurant info, or standard food databases
+- If a brand or restaurant is mentioned, use their known data
+- Always provide a complete estimate
+You MUST respond with ONLY this JSON:
+{"name":"food name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"...","confidence":"medium"}`;
     } else {
-      prompt = `You are a nutrition expert. Analyze this food and estimate its full nutritional content.${clarNote}
-Always provide your best estimate. Never refuse or say you cannot estimate.
-You MUST respond with ONLY this JSON and nothing else:
-{"name":"food name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"serving description","confidence":"medium"}`;
+      prompt = `You are a nutrition expert. Analyze this food and estimate its nutritional content.${clarNote}
+Always provide your best estimate. Never refuse.
+You MUST respond with ONLY this JSON:
+{"name":"food name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"...","confidence":"medium"}`;
     }
 
     const content: Anthropic.MessageParam["content"] = [
       ...imgBlock,
-      {type:"text" as const, text: prompt}
+      { type: "text" as const, text: prompt }
     ];
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
-      messages: [{role:"user", content}],
+      messages: [{ role: "user", content }],
     });
 
     const out = response.content
       .filter(b => b.type === "text")
-      .map(b => (b as {type:"text"; text:string}).text)
+      .map(b => (b as { type: "text"; text: string }).text)
       .join("");
 
     const cleaned = out.replace(/```json|```/g, "").trim();
     const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) {
-      console.error("No JSON in response:", out);
-      return NextResponse.json({error: "Could not parse nutrition data. Please try again."}, {status: 500});
-    }
+    if (!match) return NextResponse.json({ error: "Could not parse nutrition data." }, { status: 500 });
 
     const parsed = JSON.parse(match[0]);
-
-    // Validate required fields exist (use hasOwnProperty to allow 0 values)
     const required = ["name", "calories", "protein", "carbs", "fat"];
     const missing = required.filter(k => !(k in parsed));
-    if (missing.length > 0) {
-      console.error("Missing fields:", missing, parsed);
-      return NextResponse.json({error: "Incomplete nutrition data. Please try again."}, {status: 500});
-    }
+    if (missing.length > 0) return NextResponse.json({ error: "Incomplete nutrition data." }, { status: 500 });
 
     return NextResponse.json(parsed);
-  } catch(e) {
+  } catch (e) {
     console.error("Analyze error:", e);
-    return NextResponse.json({error: e instanceof Error ? e.message : "Analysis failed. Please try again."}, {status: 500});
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Analysis failed." }, { status: 500 });
   }
 }

@@ -72,6 +72,39 @@ const MEAL_TYPE_COLORS: Record<MealType, string> = {
   dinner:    "#3B82F6",
 };
 
+// ── Export CSV ────────────────────────────────────────────────────────────────
+function exportMealsCSV(meals: Meal[], profileName: string) {
+  const headers = [
+    "Date", "Time", "Meal Type", "Name",
+    "Calories", "Protein (g)", "Carbs (g)", "Fat (g)",
+    "Serving Size", "Notes", "Source", "Confidence"
+  ];
+  const rows = [...meals]
+    .sort((a, b) => b.meal_date.localeCompare(a.meal_date))
+    .map(m => [
+      m.meal_date,
+      new Date(m.meal_time || m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      m.meal_type ?? "",
+      `"${(m.name ?? "").replace(/"/g, '""')}"`,
+      m.calories,
+      m.protein,
+      m.carbs,
+      m.fat,
+      `"${(m.serving_size ?? "").replace(/"/g, '""')}"`,
+      `"${(m.notes ?? "").replace(/"/g, '""')}"`,
+      m.source ?? "",
+      m.confidence ?? "",
+    ]);
+  const csv = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `nutrisnap-${profileName.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 // ── CalorieRing ───────────────────────────────────────────────────────────────
 function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
   const pct = Math.min(eaten / goal, 1), r = 48, cx = 56, cy = 56, circ = 2 * Math.PI * r;
@@ -334,54 +367,33 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
     setSaving(true);
     try {
       const notesChanged = editNotes !== (m.notes ?? "");
-
       if (notesChanged) {
-        // Re-run AI analysis with updated notes as extra context
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             mode: "text",
             text: `${m.name}. Additional details: ${editNotes}`,
-            base64: null,
-            mimeType: null,
-            clarification: null,
+            base64: null, mimeType: null, clarification: null,
           }),
         }).then(r => r.json());
-
         if (!res.error) {
           onUpdate(m.id, {
-            calories: res.calories,
-            protein: res.protein,
-            carbs: res.carbs,
-            fat: res.fat,
+            calories: res.calories, protein: res.protein,
+            carbs: res.carbs, fat: res.fat,
             serving_size: res.serving_size ?? m.serving_size,
-            notes: editNotes,
-            meal_type: editType,
+            notes: editNotes, meal_type: editType,
             meal_time: editTime.toISOString(),
           });
         } else {
-          // AI failed — save everything except macros
-          onUpdate(m.id, {
-            notes: editNotes,
-            meal_type: editType,
-            meal_time: editTime.toISOString(),
-          });
+          onUpdate(m.id, { notes: editNotes, meal_type: editType, meal_time: editTime.toISOString() });
         }
       } else {
-        // Just save type and time
-        onUpdate(m.id, {
-          meal_type: editType,
-          meal_time: editTime.toISOString(),
-        });
+        onUpdate(m.id, { meal_type: editType, meal_time: editTime.toISOString() });
       }
       setEditing(false);
     } catch {
-      onUpdate(m.id, {
-        notes: editNotes,
-        meal_type: editType,
-        meal_time: editTime.toISOString(),
-      });
+      onUpdate(m.id, { notes: editNotes, meal_type: editType, meal_time: editTime.toISOString() });
       setEditing(false);
     } finally {
       setSaving(false);
@@ -390,7 +402,6 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 mb-2">
-      {/* Main row */}
       <div className="flex items-center gap-3">
         {m.image_url ? (
           <img src={m.image_url} alt={m.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
@@ -420,10 +431,8 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
         </div>
       </div>
 
-      {/* Edit panel */}
       {editing && (
         <div className="mt-3 pt-3 border-t border-gray-100 dark:border-zinc-800 space-y-3">
-          {/* Meal type */}
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Meal type</p>
             <div className="grid grid-cols-4 gap-1.5">
@@ -444,8 +453,6 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
               })}
             </div>
           </div>
-
-          {/* Time */}
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Meal time</p>
             <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
@@ -458,8 +465,6 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
             </div>
           </div>
-
-          {/* Notes / description */}
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Notes / description</p>
             <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
@@ -467,8 +472,6 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
               rows={2}
               className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
           </div>
-
-          {/* Save / cancel */}
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)}
               className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">
@@ -476,9 +479,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
             </button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-              {saving
-                ? editNotes !== (m.notes ?? "") ? "Re-analyzing…" : "Saving…"
-                : "Save changes"}
+              {saving ? (editNotes !== (m.notes ?? "") ? "Re-analyzing…" : "Saving…") : "Save changes"}
             </button>
           </div>
         </div>
@@ -524,10 +525,12 @@ export default function TrackerPage() {
   const [clarification, setClar] = useState<{ question: string; options: string[] } | null>(null);
   const [pendingB64, setPendingB64] = useState<string | null>(null);
   const [pendingMime, setPendingMime] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [usageCount, setUsageCount] = useState(0);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [chartType, setChartType] = useState<ChartType>("calories");
-  const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
 
   const [pendingMealTime, setPendingMealTime] = useState<Date>(() => floorTo30(new Date()));
   const [pendingMealType, setPendingMealType] = useState<MealType>(() => suggestMealType(new Date()));
@@ -613,6 +616,25 @@ export default function TrackerPage() {
     setClar(null); setError(""); setTextInput("");
   };
 
+  // FIX: runFinal declared before startAnalysis so both can reference it
+  const runFinal = async (
+    text: string, mode: string, clar: string | null,
+    b64: string | null, mime: string | null,
+  ) => {
+    setLoading(true);
+    setLoadingMsg(mode === "label" ? "Reading label…" : mode === "text" ? "Searching & estimating…" : "Analyzing photo…");
+    try {
+      const result = await fetch("/api/analyze", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar }),
+      }).then(r => r.json());
+      if (result.error) { setError(result.error); setLoading(false); return; }
+      const imgUrl = mode !== "text" && preview ? preview : undefined;
+      await handleAddMeal(result, imgUrl, pendingMealType, pendingMealTime);
+    } catch { setError("Could not estimate. Try again."); }
+    finally { setLoading(false); }
+  };
+
   const startAnalysis = async () => {
     setLoading(true); setError(""); setClar(null);
     try {
@@ -634,24 +656,6 @@ export default function TrackerPage() {
         await runFinal(textInput, inputMode, null, b64, mime);
       }
     } catch { setError("Something went wrong."); setLoading(false); }
-  };
-
-  const runFinal = async (
-    text: string, mode: string, clar: string | null,
-    b64: string | null, mime: string | null,
-  ) => {
-    setLoading(true);
-    setLoadingMsg(mode === "label" ? "Reading label…" : mode === "text" ? "Searching & estimating…" : "Analyzing photo…");
-    try {
-      const result = await fetch("/api/analyze", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar }),
-      }).then(r => r.json());
-      if (result.error) { setError(result.error); setLoading(false); return; }
-      const imgUrl = mode !== "text" && preview ? preview : undefined;
-      await handleAddMeal(result, imgUrl, pendingMealType, pendingMealTime);
-    } catch { setError("Could not estimate. Try again."); }
-    finally { setLoading(false); }
   };
 
   const modeConfig = {
@@ -683,7 +687,7 @@ export default function TrackerPage() {
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-xl font-medium">Calorie tracker</h1>
+          <h1 className="text-xl font-bold">NutriSnap</h1>
           <p className="text-xs text-gray-400 mt-0.5">{todayStr}</p>
         </div>
         <button onClick={() => router.push("/")}
@@ -765,8 +769,6 @@ export default function TrackerPage() {
       {tab === "add" && (
         <div>
           <p className="text-xs font-medium text-gray-400 mb-2">Add new</p>
-
-          {/* Mode selector */}
           <div className="flex gap-2 mb-4">
             {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
               <button key={key} onClick={() => { setInputMode(key); resetAdd(); }}
@@ -782,13 +784,11 @@ export default function TrackerPage() {
             ))}
           </div>
 
-          {/* Meal type + time */}
           <MealTimeEditor
             mealTime={pendingMealTime} mealType={pendingMealType}
             onChange={setPendingMealTime} onTypeChange={setPendingMealType}
           />
 
-          {/* Clarification */}
           {clarification && !loading && (
             <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
               <p className="text-sm font-medium mb-2">One quick question:</p>
@@ -810,7 +810,6 @@ export default function TrackerPage() {
 
           {!clarification && (
             <div className="space-y-3">
-              {/* Photo upload area */}
               {inputMode !== "text" && (
                 !preview ? (
                   <div onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
@@ -846,14 +845,12 @@ export default function TrackerPage() {
                 )
               )}
 
-              {/* Text input for text mode */}
               {inputMode === "text" && (
                 <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                   placeholder="e.g. 'Two scrambled eggs with toast' or 'McDonald's Big Mac meal'" rows={3}
                   className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
               )}
 
-              {/* Description field for photo/label modes — always visible */}
               {inputMode !== "text" && (
                 <textarea value={textInput} onChange={e => setTextInput(e.target.value)}
                   placeholder={inputMode === "label"
@@ -863,7 +860,6 @@ export default function TrackerPage() {
                   className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
               )}
 
-              {/* Submit */}
               <div className="flex gap-2">
                 {(preview || textInput.trim()) && (
                   <button onClick={resetAdd}
@@ -882,7 +878,7 @@ export default function TrackerPage() {
           {loading && <p className="text-center text-sm text-gray-400 mt-3">⏳ {loadingMsg}</p>}
           {error   && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
-          {/* Recent foods moved to bottom of Add tab */}
+          {/* Recent foods */}
           <div className="mt-6">
             <p className="text-xs font-medium text-gray-400 mb-2">Recent foods</p>
             <FoodSearch meals={meals} onRelog={handleRelog} />
@@ -897,6 +893,14 @@ export default function TrackerPage() {
         }, {});
         return (
           <div>
+            {/* Export button */}
+            <button onClick={() => exportMealsCSV(meals, profile!.name)}
+              className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+              <span>📥</span> Export my food log (CSV)
+            </button>
+            <p className="text-xs text-gray-400 text-center mb-4">
+              Your data belongs to you — export it anytime.
+            </p>
             {Object.keys(grouped).length === 0
               ? <div className="text-center py-10 text-gray-400 text-sm">No history yet.</div>
               : Object.entries(grouped).sort((a, b) => b[0].localeCompare(a[0])).map(([date, dayMeals]) => {
@@ -917,6 +921,44 @@ export default function TrackerPage() {
           </div>
         );
       })()}
+
+      {/* Upgrade modal */}
+      {showUpgrade && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full shadow-xl">
+            <div className="text-center mb-4">
+              <div className="text-5xl mb-3">🚀</div>
+              <h2 className="text-xl font-bold mb-1">You've hit your daily limit</h2>
+              <p className="text-sm text-gray-400">
+                You've used all {usageCount} free AI analyses today. Upgrade to Pro for unlimited analyses!
+              </p>
+            </div>
+            <div className="space-y-3 mb-4">
+              <div className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-3 flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-semibold">Pro Monthly</p>
+                  <p className="text-xs text-gray-400">Unlimited AI analyses</p>
+                </div>
+                <p className="text-lg font-bold text-blue-500">$1.99<span className="text-xs font-normal text-gray-400">/mo</span></p>
+              </div>
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex justify-between items-center">
+                <div>
+                  <p className="text-sm font-semibold">Pro Yearly <span className="text-xs text-green-500 font-medium">Save 17%</span></p>
+                  <p className="text-xs text-gray-400">Best value</p>
+                </div>
+                <p className="text-lg font-bold text-blue-500">$19.99<span className="text-xs font-normal text-gray-400">/yr</span></p>
+              </div>
+            </div>
+            <button className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-xl text-sm font-semibold transition-colors mb-2">
+              Upgrade to Pro
+            </button>
+            <button onClick={() => setShowUpgrade(false)}
+              className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
+              Maybe later — resets tomorrow
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
