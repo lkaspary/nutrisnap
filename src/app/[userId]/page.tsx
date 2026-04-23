@@ -608,7 +608,10 @@ export default function TrackerPage() {
   };
 
   // ── Stripe upgrade ────────────────────────────────────────────────────────
+  const [upgrading, setUpgrading] = useState(false);
   const handleUpgrade = async (plan: "monthly" | "yearly") => {
+    if (upgrading) return;
+    setUpgrading(true);
     const priceId = plan === "monthly"
       ? process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY
       : process.env.NEXT_PUBLIC_STRIPE_PRICE_YEARLY;
@@ -619,8 +622,11 @@ export default function TrackerPage() {
         body: JSON.stringify({ priceId, profileId: userId }),
       }).then(r => r.json());
       if (res.url) window.location.href = res.url;
+      else setError("Could not start checkout. Try again.");
     } catch {
       setError("Could not start checkout. Try again.");
+    } finally {
+      setUpgrading(false);
     }
   };
 
