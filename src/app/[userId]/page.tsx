@@ -612,14 +612,11 @@ export default function TrackerPage() {
   const handleUpgrade = async (plan: "monthly" | "yearly") => {
     if (upgrading) return;
     setUpgrading(true);
-    const priceId = plan === "monthly"
-      ? process.env.NEXT_PUBLIC_STRIPE_PRICE_MONTHLY
-      : process.env.NEXT_PUBLIC_STRIPE_PRICE_YEARLY;
     try {
       const res = await fetch("/api/stripe/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId, profileId: userId }),
+        body: JSON.stringify({ plan, profileId: userId }),
       }).then(r => r.json());
       if (res.url) window.location.href = res.url;
       else setError("Could not start checkout. Try again.");

@@ -4,6 +4,11 @@ import { createClient } from "@supabase/supabase-js";
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
 
+const PRICE_IDS: Record<string, string> = {
+  monthly: process.env.STRIPE_PRICE_MONTHLY ?? "",
+  yearly: process.env.STRIPE_PRICE_YEARLY ?? "",
+};
+
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,10 +18,15 @@ function getSupabase() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { priceId, profileId } = await req.json();
+    const { plan, profileId } = await req.json();
 
-    if (!priceId || !profileId) {
-      return NextResponse.json({ error: "Missing priceId or profileId" }, { status: 400 });
+    if (!plan || !profileId) {
+      return NextResponse.json({ error: "Missing plan or profileId" }, { status: 400 });
+    }
+
+    const priceId = PRICE_IDS[plan];
+    if (!priceId) {
+      return NextResponse.json({ error: "Invalid plan" }, { status: 400 });
     }
 
     const supabase = getSupabase();
