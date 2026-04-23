@@ -588,6 +588,12 @@ export default function TrackerPage() {
     setMeals(prev => prev.map(m => m.id === id ? updated : m));
   }, []);
 
+  const handleSignOut = async () => {
+    const { supabase: sb } = await import("@/lib/supabase");
+    await sb.auth.signOut();
+    router.push("/");
+  };
+
   const handleRelog = useCallback((m: Meal) => {
     handleAddMeal({
       name: m.name, calories: m.calories, protein: m.protein,
@@ -718,11 +724,15 @@ export default function TrackerPage() {
           <h1 className="text-xl font-bold">NutriSnap</h1>
           <p className="text-xs text-gray-400 mt-0.5">{todayStr}</p>
         </div>
-        <button onClick={() => router.push("/")}
+        <button onClick={handleSignOut}
           className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full px-3 py-1.5">
-          <div className="w-7 h-7 rounded-full flex items-center justify-center text-base"
-            style={{ background: profile!.avatar_bg }}>{profile!.avatar}</div>
-          <span className="text-sm font-medium">{profile!.name}</span>
+          {profile!.photo_url ? (
+            <img src={profile!.photo_url} alt={profile!.name} className="w-7 h-7 rounded-full object-cover" />
+          ) : (
+            <div className="w-7 h-7 rounded-full flex items-center justify-center text-base"
+              style={{ background: profile!.avatar_bg }}>{profile!.avatar}</div>
+          )}
+          <span className="text-sm font-medium">{profile!.name.split(" ")[0]}</span>
         </button>
       </div>
 
