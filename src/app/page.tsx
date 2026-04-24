@@ -56,8 +56,8 @@ function HomeContent() {
   return (
     <div className="max-w-md mx-auto px-4 py-12">
       <div className="text-center mb-10">
-        <div className="text-6xl mb-4">🥗</div>
-        <h1 className="text-3xl font-bold mb-2">NutriSnap</h1>
+        <img src="/icons/icon-192.png" alt="Caloriq" className="w-20 h-20 mx-auto mb-4 rounded-2xl" />
+        <h1 className="text-3xl font-bold mb-2">Caloriq</h1>
         <p className="text-gray-500 text-sm">AI-powered calorie & macro tracker</p>
       </div>
 
