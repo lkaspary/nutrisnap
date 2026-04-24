@@ -506,7 +506,7 @@ export default function TrackerPage() {
   const [ready, setReady] = useState(false);
 
   const [tab, setTab] = useState<"today" | "history" | "add">("today");
-  const [inputMode, setInputMode] = useState<"meal" | "label" | "text">("text");
+  const [inputMode, setInputMode] = useState<"meal" | "label" | "text" | "search">("text");
   const [textInput, setTextInput] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -615,6 +615,58 @@ export default function TrackerPage() {
 
   // ── Stripe upgrade ────────────────────────────────────────────────────────
   const [upgrading, setUpgrading] = useState(false);
+  const [foodQuery, setFoodQuery] = useState("");
+  const [foodResults, setFoodResults] = useState<any[]>([]);
+  const [foodSearching, setFoodSearching] = useState(false);
+  const [foodSearchError, setFoodSearchError] = useState("");
+
+  const searchOpenFoodFacts = async (query: string) => {
+    if (!query.trim()) return;
+    setFoodSearching(true);
+    setFoodSearchError("");
+    setFoodResults([]);
+    try {
+      const res = await fetch(
+        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,brands,nutriments,serving_size,image_thumb_url`
+      );
+      const data = await res.json();
+      const products = (data.products ?? []).filter((p: any) =>
+        p.product_name &&
+        p.nutriments?.["energy-kcal_100g"] !== undefined
+      );
+      setFoodResults(products.slice(0, 8));
+      if (products.length === 0) setFoodSearchError("No results found. Try a different search.");
+    } catch {
+      setFoodSearchError("Search failed. Check your connection.");
+    } finally {
+      setFoodSearching(false);
+    }
+  };
+
+  const handleFoodSelect = async (product: any) => {
+    const n = product.nutriments;
+    const per100 = {
+      calories: Math.round(n["energy-kcal_100g"] ?? n["energy-kcal"] ?? 0),
+      protein:  Math.round(n["proteins_100g"] ?? 0),
+      carbs:    Math.round(n["carbohydrates_100g"] ?? 0),
+      fat:      Math.round(n["fat_100g"] ?? 0),
+    };
+    const name = `${product.brands ? product.brands + " " : ""}${product.product_name}`.trim();
+    const serving = product.serving_size ?? "100g";
+    await handleSaveMeal({
+      name,
+      calories: per100.calories,
+      protein:  per100.protein,
+      carbs:    per100.carbs,
+      fat:      per100.fat,
+      source:   "openfoodfacts",
+      confidence: "high",
+      notes:    `Per 100g. Serving size: ${serving}`,
+      serving_size: serving,
+    });
+    setFoodQuery("");
+    setFoodResults([]);
+  };
   const [showPromo, setShowPromo] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
@@ -717,9 +769,10 @@ export default function TrackerPage() {
   };
 
   const modeConfig = {
-    meal:  { icon: "🍽️", label: "Meal photo" },
-    label: { icon: "🏷️", label: "Nutrition label" },
-    text:  { icon: "✏️", label: "Describe it" },
+    meal:   { icon: "🍽️", label: "Meal photo" },
+    label:  { icon: "🏷️", label: "Nutrition label" },
+    text:   { icon: "✏️", label: "Describe it" },
+    search: { icon: "🔍", label: "Search food" },
   } as const;
 
   if (!ready) return (
@@ -891,7 +944,58 @@ export default function TrackerPage() {
             </div>
           )}
 
-          {!clarification && (
+          {inputMode === "search" && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  value={foodQuery}
+                  onChange={e => setFoodQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && searchOpenFoodFacts(foodQuery)}
+                  placeholder="Search by food name or brand…"
+                  className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none focus:border-gray-400"
+                />
+                <button onClick={() => searchOpenFoodFacts(foodQuery)} disabled={foodSearching || !foodQuery.trim()}
+                  className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40">
+                  {foodSearching ? "…" : "Search"}
+                </button>
+              </div>
+              {foodSearchError && <p className="text-red-500 text-xs">{foodSearchError}</p>}
+              {foodResults.length > 0 && (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {foodResults.map((product, i) => {
+                    const n = product.nutriments;
+                    const kcal = Math.round(n["energy-kcal_100g"] ?? n["energy-kcal"] ?? 0);
+                    const prot = Math.round(n["proteins_100g"] ?? 0);
+                    const carb = Math.round(n["carbohydrates_100g"] ?? 0);
+                    const fat  = Math.round(n["fat_100g"] ?? 0);
+                    const name = `${product.brands ? product.brands + " — " : ""}${product.product_name}`.trim();
+                    return (
+                      <button key={i} onClick={() => handleFoodSelect(product)}
+                        className="w-full text-left bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl p-3 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                        <div className="flex items-start gap-3">
+                          {product.image_thumb_url && (
+                            <img src={product.image_thumb_url} alt={name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{name}</p>
+                            <p className="text-xs text-gray-400">{product.serving_size ?? "per 100g"}</p>
+                            <div className="flex gap-3 mt-1">
+                              <span className="text-xs font-medium" style={{color:"var(--cal)"}}>{kcal} kcal</span>
+                              <span className="text-xs" style={{color:"var(--prot)"}}>P: {prot}g</span>
+                              <span className="text-xs" style={{color:"var(--carb)"}}>C: {carb}g</span>
+                              <span className="text-xs" style={{color:"var(--fat)"}}>F: {fat}g</span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
+          {!clarification && inputMode !== "search" && (
             <div className="space-y-3">
               {inputMode !== "text" && (
                 !preview ? (
