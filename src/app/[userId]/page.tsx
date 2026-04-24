@@ -615,6 +615,41 @@ export default function TrackerPage() {
 
   // ── Stripe upgrade ────────────────────────────────────────────────────────
   const [upgrading, setUpgrading] = useState(false);
+  const [showPromo, setShowPromo] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const [promoSuccess, setPromoSuccess] = useState("");
+
+  const handlePromoCode = async () => {
+    if (!promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError("");
+    setPromoSuccess("");
+    try {
+      const res = await fetch("/api/promo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: promoCode.trim(), profileId: userId }),
+      }).then(r => r.json());
+      if (res.success) {
+        setPromoSuccess(`🎉 ${res.lifetime ? "Lifetime" : res.duration} Pro access activated!`);
+        setTimeout(() => {
+          setShowUpgrade(false);
+          setProfile(p => p ? { ...p, is_pro: true } : p);
+          setPromoCode("");
+          setPromoSuccess("");
+          setShowPromo(false);
+        }, 2000);
+      } else {
+        setPromoError(res.error ?? "Invalid code. Try again.");
+      }
+    } catch {
+      setPromoError("Something went wrong. Try again.");
+    } finally {
+      setPromoLoading(false);
+    }
+  };
   const handleUpgrade = async (plan: "monthly" | "yearly") => {
     if (upgrading) return;
     setUpgrading(true);
@@ -992,10 +1027,40 @@ export default function TrackerPage() {
                 <p className="text-lg font-bold text-blue-500">$19.99<span className="text-xs font-normal text-gray-400">/yr</span></p>
               </button>
             </div>
-            <button onClick={() => setShowUpgrade(false)}
-              className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
-              Maybe later — resets tomorrow
-            </button>
+            {!showPromo ? (
+              <div className="space-y-2">
+                <button onClick={() => setShowPromo(true)}
+                  className="w-full py-2 text-sm text-blue-400 hover:text-blue-600">
+                  Have a promo code?
+                </button>
+                <button onClick={() => setShowUpgrade(false)}
+                  className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
+                  Maybe later — resets tomorrow
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    value={promoCode}
+                    onChange={e => setPromoCode(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handlePromoCode()}
+                    placeholder="Enter promo code"
+                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-blue-400 uppercase"
+                  />
+                  <button onClick={handlePromoCode} disabled={promoLoading || !promoCode.trim()}
+                    className="bg-blue-500 text-white rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40">
+                    {promoLoading ? "…" : "Apply"}
+                  </button>
+                </div>
+                {promoError && <p className="text-red-500 text-xs text-center">{promoError}</p>}
+                {promoSuccess && <p className="text-green-500 text-xs text-center">{promoSuccess}</p>}
+                <button onClick={() => { setShowPromo(false); setPromoError(""); setPromoCode(""); }}
+                  className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
+                  Back
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
