@@ -616,6 +616,31 @@ export default function TrackerPage() {
   // ── Stripe upgrade ────────────────────────────────────────────────────────
   const [upgrading, setUpgrading] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [feedbackMsg, setFeedbackMsg] = useState("");
+  const [feedbackSending, setFeedbackSending] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+
+  const handleSendFeedback = async () => {
+    if (!feedbackMsg.trim()) return;
+    setFeedbackSending(true);
+    try {
+      await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: feedbackMsg, profileName: profile?.name }),
+      });
+      setFeedbackSent(true);
+      setFeedbackMsg("");
+      setTimeout(() => { setShowFeedback(false); setFeedbackSent(false); }, 2000);
+    } catch {
+      // still close gracefully
+      setFeedbackSent(true);
+      setTimeout(() => { setShowFeedback(false); setFeedbackSent(false); }, 2000);
+    } finally {
+      setFeedbackSending(false);
+    }
+  };
   const AVATARS = ["🧑","👩","👨","🧔","👱","👩‍🦰","👩‍🦱","🧑‍🦲","👴","👵","🧑‍💻","👩‍⚕️","🧑‍🍳","👩‍🎤","🧑‍🎨"];
   const AVATAR_BGS = ["#EEEDFE","#E1F5EE","#E6F1FB","#FAECE7","#EAF3DE","#FAEEDA","#FBEAF0","#F1EFE8"];
 
@@ -896,7 +921,7 @@ export default function TrackerPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1 mb-4">
-        {([["add", "+ Add"], ["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
+        {([["add", "+ Log"], ["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
           <button key={t} onClick={() => setTab(t)}
             className="flex-1 py-2 text-xs rounded-xl transition-all"
             style={{ background: tab === t ? "#f3f4f6" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#9ca3af" }}>
@@ -1121,6 +1146,45 @@ export default function TrackerPage() {
         );
       })()}
 
+      {/* Feedback modal */}
+      {showFeedback && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">Send us a message</p>
+              <button onClick={() => setShowFeedback(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            {feedbackSent ? (
+              <div className="text-center py-6">
+                <div className="text-4xl mb-2">🙏</div>
+                <p className="text-sm font-medium">Thanks for your feedback!</p>
+                <p className="text-xs text-gray-400 mt-1">We read every message.</p>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  value={feedbackMsg}
+                  onChange={e => setFeedbackMsg(e.target.value)}
+                  placeholder="Share your thoughts, ideas, or report a problem…"
+                  rows={5}
+                  className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none focus:border-gray-400 resize-none mb-3"
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => setShowFeedback(false)}
+                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">
+                    Cancel
+                  </button>
+                  <button onClick={handleSendFeedback} disabled={feedbackSending || !feedbackMsg.trim()}
+                    className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                    {feedbackSending ? "Sending…" : "Send message"}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Avatar picker for non-Google users */}
       {showAvatarPicker && !profile?.photo_url && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
@@ -1145,10 +1209,10 @@ export default function TrackerPage() {
 
       {/* Feedback button */}
       <div className="mt-6 mb-2 text-center">
-        <a href="mailto:feedback@calor-iq.com?subject=Caloriq Feedback"
+        <button onClick={() => setShowFeedback(true)}
           className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
           <span>💬</span> Send us a message
-        </a>
+        </button>
       </div>
 
       {/* Upgrade modal */}
