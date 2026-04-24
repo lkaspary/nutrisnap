@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 
+export const maxDuration = 60; // 60 second timeout (requires Vercel Pro for >10s)
+export const dynamic = "force-dynamic";
+
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const FREE_LIMIT = 5;
 
