@@ -505,7 +505,7 @@ export default function TrackerPage() {
   const [meals, setMeals] = useState<Meal[]>([]);
   const [ready, setReady] = useState(false);
 
-  const [tab, setTab] = useState<"today" | "history" | "add">("today");
+  const [tab, setTab] = useState<"today" | "history" | "add">("add");
   const [inputMode, setInputMode] = useState<"meal" | "label" | "text" | "search">("text");
   const [textInput, setTextInput] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
@@ -615,6 +615,16 @@ export default function TrackerPage() {
 
   // ── Stripe upgrade ────────────────────────────────────────────────────────
   const [upgrading, setUpgrading] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const AVATARS = ["🧑","👩","👨","🧔","👱","👩‍🦰","👩‍🦱","🧑‍🦲","👴","👵","🧑‍💻","👩‍⚕️","🧑‍🍳","👩‍🎤","🧑‍🎨"];
+  const AVATAR_BGS = ["#EEEDFE","#E1F5EE","#E6F1FB","#FAECE7","#EAF3DE","#FAEEDA","#FBEAF0","#F1EFE8"];
+
+  const handleAvatarChange = async (avatar: string, bg: string) => {
+    const { supabase: sb } = await import("@/lib/supabase");
+    await sb.from("profiles").update({ avatar, avatar_bg: bg }).eq("id", userId);
+    setProfile(p => p ? { ...p, avatar, avatar_bg: bg } : p);
+    setShowAvatarPicker(false);
+  };
   const [foodQuery, setFoodQuery] = useState("");
   const [foodResults, setFoodResults] = useState<any[]>([]);
   const [foodSearching, setFoodSearching] = useState(false);
@@ -808,20 +818,29 @@ export default function TrackerPage() {
 
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-bold">NutriSnap</h1>
-          <p className="text-xs text-gray-400 mt-0.5">{todayStr}</p>
+        <div className="flex items-center gap-2">
+          <img src="/icons/icon-192.png" alt="Caloriq" className="w-8 h-8 rounded-xl" />
+          <div>
+            <h1 className="text-xl font-bold">Caloriq</h1>
+            <p className="text-xs text-gray-400 mt-0.5">{todayStr}</p>
+          </div>
         </div>
-        <button onClick={handleSignOut}
-          className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full px-3 py-1.5">
-          {profile!.photo_url ? (
-            <img src={profile!.photo_url} alt={profile!.name} className="w-7 h-7 rounded-full object-cover" />
-          ) : (
-            <div className="w-7 h-7 rounded-full flex items-center justify-center text-base"
-              style={{ background: profile!.avatar_bg }}>{profile!.avatar}</div>
+        <div className="flex items-center gap-2">
+          {!profile!.photo_url && (
+            <button onClick={() => setShowAvatarPicker(p => !p)}
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xl border-2 border-gray-200 dark:border-zinc-700"
+              style={{ background: profile!.avatar_bg }}>{profile!.avatar}</button>
           )}
-          <span className="text-sm font-medium">{profile!.name.split(" ")[0]}</span>
-        </button>
+          <button onClick={handleSignOut}
+            className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full px-3 py-1.5">
+            {profile!.photo_url ? (
+              <img src={profile!.photo_url} alt={profile!.name} className="w-7 h-7 rounded-full object-cover" />
+            ) : (
+              <span className="text-sm font-medium">{profile!.name.split(" ")[0]}</span>
+            )}
+            {profile!.photo_url && <span className="text-sm font-medium">{profile!.name.split(" ")[0]}</span>}
+          </button>
+        </div>
       </div>
 
       {/* Pro badge if user is pro */}
@@ -877,7 +896,7 @@ export default function TrackerPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1 mb-4">
-        {([["today", "Today"], ["add", "+ Add"], ["history", "History"]] as const).map(([t, l]) => (
+        {([["add", "+ Add"], ["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
           <button key={t} onClick={() => setTab(t)}
             className="flex-1 py-2 text-xs rounded-xl transition-all"
             style={{ background: tab === t ? "#f3f4f6" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#9ca3af" }}>
@@ -1101,6 +1120,36 @@ export default function TrackerPage() {
           </div>
         );
       })()}
+
+      {/* Avatar picker for non-Google users */}
+      {showAvatarPicker && !profile?.photo_url && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">Choose your avatar</p>
+              <button onClick={() => setShowAvatarPicker(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {AVATARS.map((a, i) => (
+                <button key={a} onClick={() => handleAvatarChange(a, AVATAR_BGS[i % AVATAR_BGS.length])}
+                  className="w-12 h-12 rounded-full text-2xl flex items-center justify-center transition-all border-2"
+                  style={{
+                    background: AVATAR_BGS[i % AVATAR_BGS.length],
+                    borderColor: profile?.avatar === a ? "#888" : "transparent"
+                  }}>{a}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback button */}
+      <div className="mt-6 mb-2 text-center">
+        <a href="mailto:feedback@calor-iq.com?subject=Caloriq Feedback"
+          className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+          <span>💬</span> Send us a message
+        </a>
+      </div>
 
       {/* Upgrade modal */}
       {showUpgrade && (
