@@ -1,12 +1,19 @@
 {
+  "id": "com.caloriq.app",
   "name": "Caloriq",
   "short_name": "Caloriq",
-  "description": "AI-powered calorie and macro tracker",
+  "description": "AI-powered calorie and macro tracker. Snap a photo to log meals and track macros instantly.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f5f5f3",
   "theme_color": "#7F77DD",
   "orientation": "portrait",
+  "scope": "/",
+  "lang": "en",
+  "categories": [
+    "health",
+    "fitness"
+  ],
   "icons": [
     {
       "src": "/icons/icon-192.png",
@@ -19,6 +26,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/screen1.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Home screen"
     }
   ]
 }
