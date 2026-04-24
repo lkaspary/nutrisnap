@@ -653,7 +653,7 @@ export default function TrackerPage() {
     };
     const name = `${product.brands ? product.brands + " " : ""}${product.product_name}`.trim();
     const serving = product.serving_size ?? "100g";
-    await handleSaveMeal({
+    await handleAddMeal({
       name,
       calories: per100.calories,
       protein:  per100.protein,
