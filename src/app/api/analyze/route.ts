@@ -111,6 +111,48 @@ export async function POST(req: NextRequest) {
 
     let prompt = "";
     if (mode === "label") {
+      // Step 1: Extract product name from label to check OpenFoodFacts
+      if (hasImage) {
+        try {
+          const namePrompt = `Look at this nutrition label image. What is the product name and brand? Reply with ONLY this JSON, nothing else: {"name":"brand and product name"}`;
+          const nameResponse = await client.messages.create({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 100,
+            messages: [{ role: "user", content: [...imgBlock, { type: "text" as const, text: namePrompt }] }],
+          });
+          const nameText = nameResponse.content.filter(b => b.type === "text").map(b => (b as any).text).join("");
+          const nameMatch = nameText.match(/\{[\s\S]*\}/);
+          if (nameMatch) {
+            const { name: productName } = JSON.parse(nameMatch[0]);
+            if (productName && productName.length > 2) {
+              const offRes = await fetch(
+                `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(productName)}&search_simple=1&action=process&json=1&page_size=3&fields=product_name,brands,nutriments,serving_size`,
+                { signal: AbortSignal.timeout(3000) }
+              );
+              const offData = await offRes.json();
+              const product = (offData.products ?? []).find((p: any) =>
+                p.product_name && p.nutriments?.["energy-kcal_100g"] !== undefined
+              );
+              if (product) {
+                const n = product.nutriments;
+                return NextResponse.json({
+                  name: `${product.brands ? product.brands + " " : ""}${product.product_name}`.trim(),
+                  calories: Math.round(n["energy-kcal_100g"] ?? 0),
+                  protein: Math.round(n["proteins_100g"] ?? 0),
+                  carbs: Math.round(n["carbohydrates_100g"] ?? 0),
+                  fat: Math.round(n["fat_100g"] ?? 0),
+                  serving_size: product.serving_size ?? "per 100g",
+                  confidence: "high",
+                  source: "openfoodfacts",
+                });
+              }
+            }
+          }
+        } catch {
+          // Fall through to full label AI reading
+        }
+      }
+
       prompt = `You are a nutrition expert reading a food label image.
 ${hasText ? `User note: "${text}"${clarNote}` : clarNote}
 Instructions:
