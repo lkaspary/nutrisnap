@@ -71,6 +71,35 @@ export async function POST(req: NextRequest) {
       }, { onConflict: "profile_id,date" });
     }
 
+    // ── #17: Check OpenFoodFacts first for text mode ─────────────────────────
+    if (mode === "text" && text && text.trim().length > 2 && !clarification) {
+      try {
+        const offRes = await fetch(
+          `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(text.trim())}&search_simple=1&action=process&json=1&page_size=3&fields=product_name,brands,nutriments,serving_size`,
+          { signal: AbortSignal.timeout(3000) }
+        );
+        const offData = await offRes.json();
+        const product = (offData.products ?? []).find((p: any) =>
+          p.product_name && p.nutriments?.["energy-kcal_100g"] !== undefined
+        );
+        if (product) {
+          const n = product.nutriments;
+          return NextResponse.json({
+            name: `${product.brands ? product.brands + " " : ""}${product.product_name}`.trim(),
+            calories: Math.round(n["energy-kcal_100g"] ?? 0),
+            protein: Math.round(n["proteins_100g"] ?? 0),
+            carbs: Math.round(n["carbohydrates_100g"] ?? 0),
+            fat: Math.round(n["fat_100g"] ?? 0),
+            serving_size: product.serving_size ?? "per 100g",
+            confidence: "high",
+            source: "openfoodfacts",
+          });
+        }
+      } catch {
+        // OpenFoodFacts failed or timed out — fall through to AI
+      }
+    }
+
     // ── Run AI analysis ───────────────────────────────────────────────────────
     const imgBlock = base64 && mimeType ? [{
       type: "image" as const,

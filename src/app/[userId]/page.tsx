@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
-  getProfiles, getMeals, addMeal, deleteMeal, updateMeal,
+  getProfiles, getMeals, getMeals30Days, getAllMeals, addMeal, deleteMeal, updateMeal, updateBodyStats, type BodyStats,
   type Profile, type Meal, type MealType,
 } from "@/lib/db";
 import {
@@ -517,6 +517,10 @@ export default function TrackerPage() {
   const [pendingB64, setPendingB64] = useState<string | null>(null);
   const [pendingMime, setPendingMime] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [historyMeals, setHistoryMeals] = useState<Meal[]>([]);
+  const [showBodyStats, setShowBodyStats] = useState(false);
+  const [bodyStats, setBodyStats] = useState({ weight_kg: "", height_cm: "", age: "", gender: "" });
+  const [savingStats, setSavingStats] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [chartType, setChartType] = useState<ChartType>("calories");
@@ -547,6 +551,7 @@ export default function TrackerPage() {
       setProfile(p);
       setReady(true);
       getMeals(userId).then(ms => setMeals(ms)).catch(() => {});
+      getMeals30Days(userId).then(ms => setHistoryMeals(ms)).catch(() => {});
     }).catch(() => router.push("/"));
   }, [userId, router]);
 
@@ -620,6 +625,40 @@ export default function TrackerPage() {
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
+
+  // #3 - Unsubscribe via Stripe portal
+  const handleManageSubscription = async () => {
+    const res = await fetch("/api/stripe/portal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ profileId: userId }),
+    }).then(r => r.json());
+    if (res.url) window.location.href = res.url;
+    else alert("Could not open subscription portal. Please try again.");
+  };
+
+  // #19 - Save body stats
+  const handleSaveBodyStats = async () => {
+    setSavingStats(true);
+    try {
+      await updateBodyStats(userId, {
+        weight_kg: bodyStats.weight_kg ? parseFloat(bodyStats.weight_kg) : null,
+        height_cm: bodyStats.height_cm ? parseFloat(bodyStats.height_cm) : null,
+        age: bodyStats.age ? parseInt(bodyStats.age) : null,
+        gender: (bodyStats.gender as "male" | "female" | "other") || null,
+      });
+      setProfile(p => p ? {
+        ...p,
+        weight_kg: bodyStats.weight_kg ? parseFloat(bodyStats.weight_kg) : null,
+        height_cm: bodyStats.height_cm ? parseFloat(bodyStats.height_cm) : null,
+        age: bodyStats.age ? parseInt(bodyStats.age) : null,
+        gender: (bodyStats.gender as "male" | "female" | "other") || null,
+      } : p);
+      setShowBodyStats(false);
+    } finally {
+      setSavingStats(false);
+    }
+  };
 
   const handleSendFeedback = async () => {
     if (!feedbackMsg.trim()) return;
@@ -856,6 +895,10 @@ export default function TrackerPage() {
               className="w-9 h-9 rounded-full flex items-center justify-center text-xl border-2 border-gray-200 dark:border-zinc-700"
               style={{ background: profile!.avatar_bg }}>{profile!.avatar}</button>
           )}
+          <button onClick={() => setShowFeedback(true)}
+            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1.5 rounded-full border border-gray-200 dark:border-zinc-700">
+            <span>💬</span>
+          </button>
           <button onClick={handleSignOut}
             className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full px-3 py-1.5">
             {profile!.photo_url ? (
@@ -867,6 +910,18 @@ export default function TrackerPage() {
           </button>
         </div>
       </div>
+
+      {/* Remaining analyses nudge (#6) */}
+      {!profile?.is_pro && usageCount > 0 && usageCount < 5 && (
+        <div className="mb-3 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between">
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            {5 - usageCount} free {5 - usageCount === 1 ? "analysis" : "analyses"} remaining today
+          </p>
+          <button onClick={() => setShowUpgrade(true)} className="text-xs font-medium text-amber-700 dark:text-amber-400 underline">
+            Upgrade
+          </button>
+        </div>
+      )}
 
       {/* Pro badge if user is pro */}
       {profile?.is_pro && (
@@ -1113,14 +1168,17 @@ export default function TrackerPage() {
 
       {/* History */}
       {tab === "history" && (() => {
-        const grouped = meals.reduce<Record<string, Meal[]>>((acc, m) => {
+        const grouped = historyMeals.reduce<Record<string, Meal[]>>((acc, m) => {
           acc[m.meal_date] = acc[m.meal_date] || []; acc[m.meal_date].push(m); return acc;
         }, {});
         return (
           <div>
-            <button onClick={() => exportMealsCSV(meals, profile!.name)}
+            <button onClick={async () => {
+                const all = await getAllMeals(userId);
+                exportMealsCSV(all, profile!.name);
+              }}
               className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-              <span>📥</span> Export my food log (CSV)
+              <span>📥</span> Export full food log (CSV)
             </button>
             <p className="text-xs text-gray-400 text-center mb-4">
               Your data belongs to you — export it anytime.
@@ -1145,6 +1203,58 @@ export default function TrackerPage() {
           </div>
         );
       })()}
+
+      {/* Body stats modal (#19) */}
+      {showBodyStats && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">My stats</p>
+              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
+                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
+                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
+                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
+                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
+                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowBodyStats(false)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleSaveBodyStats} disabled={savingStats}
+                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {savingStats ? "Saving…" : "Save stats"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Feedback modal */}
       {showFeedback && (
@@ -1207,12 +1317,18 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Feedback button */}
-      <div className="mt-6 mb-2 text-center">
-        <button onClick={() => setShowFeedback(true)}
-          className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-          <span>💬</span> Send us a message
+      {/* Body stats + manage subscription footer */}
+      <div className="mt-6 mb-2 flex items-center justify-center gap-4">
+        <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+          className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+          ⚖️ My stats
         </button>
+        {profile?.is_pro && (
+          <button onClick={handleManageSubscription}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            💳 Manage subscription
+          </button>
+        )}
       </div>
 
       {/* Upgrade modal */}

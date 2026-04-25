@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.caloriq.mobile",
+        "sha256_cert_fingerprints": ["D5:33:4C:11:09:6A:6A:C3:91:DB:D1:B1:BE:3D:7A:5D:03:FA:9A:17:A7:07:8C:3F:73:07:F6:44:6F:E8:57:FB"]
+      }
+    }]
