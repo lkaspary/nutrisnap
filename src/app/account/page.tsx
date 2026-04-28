@@ -164,7 +164,7 @@ export default function AccountPage() {
                     </button>
                     <button onClick={handleDelete} disabled={deleting}
                       className="flex-[2] bg-red-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-red-600 disabled:opacity-40">
-                      {step === "deleting" ? "Deleting…" : "Yes, delete everything"}
+                      {deleting ? "Deleting…" : "Yes, delete everything"}
                     </button>
                   </div>
                 </div>
