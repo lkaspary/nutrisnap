@@ -1,5 +1,69 @@
 "use client";
 import { useState } from "react";
+import { useState } from "react";
+
+function MessageBox() {
+  const [msg, setMsg] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSend = async () => {
+    if (!msg.trim()) return;
+    setSending(true);
+    try {
+      const res = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: msg, profileName: "Account page visitor" }),
+      }).then(r => r.json());
+      if (res.success !== false) {
+        setSent(true);
+        setMsg("");
+      } else {
+        setError("Could not send. Please try again.");
+      }
+    } catch {
+      setError("Could not send. Please try again.");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-5">
+      <div className="flex items-start gap-3 mb-4">
+        <span className="text-2xl">💬</span>
+        <div>
+          <h2 className="text-sm font-semibold">Message us</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Questions, feedback, or need help? We read every message.</p>
+        </div>
+      </div>
+      {sent ? (
+        <div className="text-center py-4">
+          <div className="text-3xl mb-2">🙏</div>
+          <p className="text-sm font-medium">Message sent!</p>
+          <p className="text-xs text-gray-400 mt-1">We'll get back to you soon.</p>
+        </div>
+      ) : (
+        <>
+          <textarea
+            value={msg}
+            onChange={e => setMsg(e.target.value)}
+            placeholder="Write your message here…"
+            rows={4}
+            className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none focus:border-gray-400 resize-none mb-3"
+          />
+          {error && <p className="text-red-500 text-xs mb-2">{error}</p>}
+          <button onClick={handleSend} disabled={sending || !msg.trim()}
+            className="w-full py-2.5 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-medium disabled:opacity-40">
+            {sending ? "Sending…" : "Send message"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function AccountPage() {
   const [email, setEmail] = useState("");
@@ -101,7 +165,7 @@ export default function AccountPage() {
                     </button>
                     <button onClick={handleDelete} disabled={deleting}
                       className="flex-[2] bg-red-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-red-600 disabled:opacity-40">
-                      {deleting ? "Deleting…" : "Yes, delete everything"}
+                      {step === "deleting" ? "Deleting…" : "Yes, delete everything"}
                     </button>
                   </div>
                 </div>
@@ -125,10 +189,7 @@ export default function AccountPage() {
             </div>
 
             {/* Footer */}
-            <p className="text-center text-xs text-gray-400 mt-6">
-              Questions? Contact us at{" "}
-              <a href="mailto:lkaspary@gmail.com" className="underline">support@calor-iq.com</a>
-            </p>
+            <MessageBox />
           </>
         )}
       </div>
