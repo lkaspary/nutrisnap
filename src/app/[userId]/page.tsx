@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
-  getProfiles, getMeals, addMeal, deleteMeal, updateMeal,
+  getProfiles, getMeals, getMeals30Days, getAllMeals, addMeal, deleteMeal, updateMeal,
   type Profile, type Meal, type MealType,
 } from "@/lib/db";
 import {
@@ -517,6 +517,7 @@ export default function TrackerPage() {
   const [pendingB64, setPendingB64] = useState<string | null>(null);
   const [pendingMime, setPendingMime] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
+  const [historyMeals, setHistoryMeals] = useState<Meal[]>([]);
   const [showBodyStats, setShowBodyStats] = useState(false);
   const [bodyStats, setBodyStats] = useState({ weight_kg: "", height_cm: "", age: "", gender: "" });
   const [savingStats, setSavingStats] = useState(false);
@@ -534,13 +535,39 @@ export default function TrackerPage() {
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
+    import("@/lib/supabase").then(({ supabase }) => {
+      supabase.from("day_confirmed")
+        .select("date")
+        .eq("profile_id", userId)
+        .eq("date", today)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            setDayConfirmed(true);
+            localStorage.setItem(`dayConfirmed:${userId}`, today);
+          }
+        });
+    });
   }, [userId, today]);
 
-  const toggleDayConfirmed = () => {
+  const toggleDayConfirmed = async () => {
     const next = !dayConfirmed;
     setDayConfirmed(next);
-    if (next) localStorage.setItem(`dayConfirmed:${userId}`, today);
-    else localStorage.removeItem(`dayConfirmed:${userId}`);
+    const { supabase } = await import("@/lib/supabase");
+    if (next) {
+      localStorage.setItem(`dayConfirmed:${userId}`, today);
+      await supabase.from("day_confirmed").upsert({
+        profile_id: userId,
+        date: today,
+        confirmed_at: new Date().toISOString(),
+      }, { onConflict: "profile_id,date" });
+    } else {
+      localStorage.removeItem(`dayConfirmed:${userId}`);
+      await supabase.from("day_confirmed")
+        .delete()
+        .eq("profile_id", userId)
+        .eq("date", today);
+    }
   };
 
   useEffect(() => {
@@ -550,6 +577,7 @@ export default function TrackerPage() {
       setProfile(p);
       setReady(true);
       getMeals(userId).then(ms => setMeals(ms)).catch(() => {});
+      getMeals30Days(userId).then(ms => setHistoryMeals(ms)).catch(() => {});
     }).catch(() => router.push("/"));
   }, [userId, router]);
 
@@ -1055,12 +1083,12 @@ export default function TrackerPage() {
 
       {/* History */}
       {tab === "history" && (() => {
-        const grouped = meals.reduce<Record<string, Meal[]>>((acc, m) => {
+        const grouped = historyMeals.reduce<Record<string, Meal[]>>((acc, m) => {
           acc[m.meal_date] = acc[m.meal_date] || []; acc[m.meal_date].push(m); return acc;
         }, {});
         return (
           <div>
-            <button onClick={() => exportMealsCSV(meals, profile!.name)}
+            <button onClick={async () => { const all = await getAllMeals(userId); exportMealsCSV(all, profile!.name); }}
               className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
               <span>📥</span> Export my food log (CSV)
             </button>
