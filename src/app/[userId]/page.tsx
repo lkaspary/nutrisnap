@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
-  getProfiles, getMeals, getMeals30Days, getAllMeals, addMeal, deleteMeal, updateMeal, updateBodyStats, type BodyStats,
+  getProfiles, getMeals, addMeal, deleteMeal, updateMeal,
   type Profile, type Meal, type MealType,
 } from "@/lib/db";
 import {
@@ -153,6 +153,80 @@ function MealTimeEditor({
         <button onClick={() => onChange(shiftMinutes(mealTime, 30))}
           className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
       </div>
+      {/* Footer actions */}
+      <div className="mt-6 mb-4 space-y-2">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            ⚖️ My stats
+          </button>
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            🔒 Privacy
+          </a>
+          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            👤 My account
+          </a>
+        </div>
+        {profile?.is_pro && (
+          <button onClick={handleManageSubscription}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            💳 Manage or cancel subscription
+          </button>
+        )}
+      </div>
+
+      {/* Body stats modal */}
+      {showBodyStats && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">My stats</p>
+              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
+                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
+                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
+                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
+                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
+                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowBodyStats(false)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleSaveBodyStats} disabled={savingStats}
+                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {savingStats ? "Saving…" : "Save stats"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -210,6 +284,80 @@ function BarChart({ meals, type, onBarClick }: { meals: Meal[]; type: ChartType;
           </div>
         ))}
       </div>
+      {/* Footer actions */}
+      <div className="mt-6 mb-4 space-y-2">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            ⚖️ My stats
+          </button>
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            🔒 Privacy
+          </a>
+          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            👤 My account
+          </a>
+        </div>
+        {profile?.is_pro && (
+          <button onClick={handleManageSubscription}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            💳 Manage or cancel subscription
+          </button>
+        )}
+      </div>
+
+      {/* Body stats modal */}
+      {showBodyStats && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">My stats</p>
+              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
+                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
+                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
+                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
+                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
+                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowBodyStats(false)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleSaveBodyStats} disabled={savingStats}
+                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {savingStats ? "Saving…" : "Save stats"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -304,6 +452,80 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
           )}
         </table>
       </div>
+      {/* Footer actions */}
+      <div className="mt-6 mb-4 space-y-2">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            ⚖️ My stats
+          </button>
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            🔒 Privacy
+          </a>
+          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            👤 My account
+          </a>
+        </div>
+        {profile?.is_pro && (
+          <button onClick={handleManageSubscription}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            💳 Manage or cancel subscription
+          </button>
+        )}
+      </div>
+
+      {/* Body stats modal */}
+      {showBodyStats && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">My stats</p>
+              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
+                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
+                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
+                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
+                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
+                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowBodyStats(false)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleSaveBodyStats} disabled={savingStats}
+                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {savingStats ? "Saving…" : "Save stats"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -340,6 +562,80 @@ function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => v
           ))}
         </div>
       )}
+      {/* Footer actions */}
+      <div className="mt-6 mb-4 space-y-2">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            ⚖️ My stats
+          </button>
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            🔒 Privacy
+          </a>
+          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            👤 My account
+          </a>
+        </div>
+        {profile?.is_pro && (
+          <button onClick={handleManageSubscription}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            💳 Manage or cancel subscription
+          </button>
+        )}
+      </div>
+
+      {/* Body stats modal */}
+      {showBodyStats && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">My stats</p>
+              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
+                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
+                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
+                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
+                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
+                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowBodyStats(false)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleSaveBodyStats} disabled={savingStats}
+                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {savingStats ? "Saving…" : "Save stats"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -472,6 +768,80 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           </div>
         </div>
       )}
+      {/* Footer actions */}
+      <div className="mt-6 mb-4 space-y-2">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            ⚖️ My stats
+          </button>
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            🔒 Privacy
+          </a>
+          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            👤 My account
+          </a>
+        </div>
+        {profile?.is_pro && (
+          <button onClick={handleManageSubscription}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            💳 Manage or cancel subscription
+          </button>
+        )}
+      </div>
+
+      {/* Body stats modal */}
+      {showBodyStats && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">My stats</p>
+              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
+                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
+                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
+                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
+                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
+                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowBodyStats(false)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleSaveBodyStats} disabled={savingStats}
+                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {savingStats ? "Saving…" : "Save stats"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
@@ -506,7 +876,7 @@ export default function TrackerPage() {
   const [ready, setReady] = useState(false);
 
   const [tab, setTab] = useState<"today" | "history" | "add">("add");
-  const [inputMode, setInputMode] = useState<"meal" | "label" | "text">("text");
+  const [inputMode, setInputMode] = useState<"meal" | "label" | "text" | "search">("text");
   const [textInput, setTextInput] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -517,10 +887,6 @@ export default function TrackerPage() {
   const [pendingB64, setPendingB64] = useState<string | null>(null);
   const [pendingMime, setPendingMime] = useState<string | null>(null);
   const [showUpgrade, setShowUpgrade] = useState(false);
-  const [historyMeals, setHistoryMeals] = useState<Meal[]>([]);
-  const [showBodyStats, setShowBodyStats] = useState(false);
-  const [bodyStats, setBodyStats] = useState({ weight_kg: "", height_cm: "", age: "", gender: "" });
-  const [savingStats, setSavingStats] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [chartType, setChartType] = useState<ChartType>("calories");
@@ -535,39 +901,13 @@ export default function TrackerPage() {
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
-    import("@/lib/supabase").then(({ supabase }) => {
-      supabase.from("day_confirmed")
-        .select("date")
-        .eq("profile_id", userId)
-        .eq("date", today)
-        .single()
-        .then(({ data }) => {
-          if (data) {
-            setDayConfirmed(true);
-            localStorage.setItem(`dayConfirmed:${userId}`, today);
-          }
-        });
-    });
   }, [userId, today]);
 
-  const toggleDayConfirmed = async () => {
+  const toggleDayConfirmed = () => {
     const next = !dayConfirmed;
     setDayConfirmed(next);
-    const { supabase } = await import("@/lib/supabase");
-    if (next) {
-      localStorage.setItem(`dayConfirmed:${userId}`, today);
-      await supabase.from("day_confirmed").upsert({
-        profile_id: userId,
-        date: today,
-        confirmed_at: new Date().toISOString(),
-      }, { onConflict: "profile_id,date" });
-    } else {
-      localStorage.removeItem(`dayConfirmed:${userId}`);
-      await supabase.from("day_confirmed")
-        .delete()
-        .eq("profile_id", userId)
-        .eq("date", today);
-    }
+    if (next) localStorage.setItem(`dayConfirmed:${userId}`, today);
+    else localStorage.removeItem(`dayConfirmed:${userId}`);
   };
 
   useEffect(() => {
@@ -577,7 +917,6 @@ export default function TrackerPage() {
       setProfile(p);
       setReady(true);
       getMeals(userId).then(ms => setMeals(ms)).catch(() => {});
-      getMeals30Days(userId).then(ms => setHistoryMeals(ms)).catch(() => {});
     }).catch(() => router.push("/"));
   }, [userId, router]);
 
@@ -652,35 +991,21 @@ export default function TrackerPage() {
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
 
-  const handleManageSubscription = async () => {
-    const res = await fetch("/api/stripe/portal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profileId: userId }),
-    }).then(r => r.json());
-    if (res.url) window.location.href = res.url;
-    else alert("Could not open subscription portal. Please try again.");
-  };
 
-  const handleSaveBodyStats = async () => {
-    setSavingStats(true);
+  const handleManageSubscription = async () => {
     try {
-      await updateBodyStats(userId, {
-        weight_kg: bodyStats.weight_kg ? parseFloat(bodyStats.weight_kg) : null,
-        height_cm: bodyStats.height_cm ? parseFloat(bodyStats.height_cm) : null,
-        age: bodyStats.age ? parseInt(bodyStats.age) : null,
-        gender: (bodyStats.gender as "male" | "female" | "other") || null,
-      });
-      setProfile(p => p ? {
-        ...p,
-        weight_kg: bodyStats.weight_kg ? parseFloat(bodyStats.weight_kg) : null,
-        height_cm: bodyStats.height_cm ? parseFloat(bodyStats.height_cm) : null,
-        age: bodyStats.age ? parseInt(bodyStats.age) : null,
-        gender: (bodyStats.gender as "male" | "female" | "other") || null,
-      } : p);
-      setShowBodyStats(false);
-    } finally {
-      setSavingStats(false);
+      const res = await fetch("/api/stripe/portal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profileId: userId }),
+      }).then(r => r.json());
+      if (res.url) {
+        window.location.href = res.url;
+      } else {
+        window.location.href = "https://billing.stripe.com/p/login/14A6oA8ILaui26P8Zu3ks00";
+      }
+    } catch {
+      window.location.href = "https://billing.stripe.com/p/login/14A6oA8ILaui26P8Zu3ks00";
     }
   };
 
@@ -713,7 +1038,58 @@ export default function TrackerPage() {
     setProfile(p => p ? { ...p, avatar, avatar_bg: bg } : p);
     setShowAvatarPicker(false);
   };
+  const [foodQuery, setFoodQuery] = useState("");
+  const [foodResults, setFoodResults] = useState<any[]>([]);
+  const [foodSearching, setFoodSearching] = useState(false);
+  const [foodSearchError, setFoodSearchError] = useState("");
 
+  const searchOpenFoodFacts = async (query: string) => {
+    if (!query.trim()) return;
+    setFoodSearching(true);
+    setFoodSearchError("");
+    setFoodResults([]);
+    try {
+      const res = await fetch(
+        `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(query)}&search_simple=1&action=process&json=1&page_size=10&fields=product_name,brands,nutriments,serving_size,image_thumb_url`
+      );
+      const data = await res.json();
+      const products = (data.products ?? []).filter((p: any) =>
+        p.product_name &&
+        p.nutriments?.["energy-kcal_100g"] !== undefined
+      );
+      setFoodResults(products.slice(0, 8));
+      if (products.length === 0) setFoodSearchError("No results found. Try a different search.");
+    } catch {
+      setFoodSearchError("Search failed. Check your connection.");
+    } finally {
+      setFoodSearching(false);
+    }
+  };
+
+  const handleFoodSelect = async (product: any) => {
+    const n = product.nutriments;
+    const per100 = {
+      calories: Math.round(n["energy-kcal_100g"] ?? n["energy-kcal"] ?? 0),
+      protein:  Math.round(n["proteins_100g"] ?? 0),
+      carbs:    Math.round(n["carbohydrates_100g"] ?? 0),
+      fat:      Math.round(n["fat_100g"] ?? 0),
+    };
+    const name = `${product.brands ? product.brands + " " : ""}${product.product_name}`.trim();
+    const serving = product.serving_size ?? "100g";
+    await handleAddMeal({
+      name,
+      calories: per100.calories,
+      protein:  per100.protein,
+      carbs:    per100.carbs,
+      fat:      per100.fat,
+      source:   "openfoodfacts",
+      confidence: "high",
+      notes:    `Per 100g. Serving size: ${serving}`,
+      serving_size: serving,
+    });
+    setFoodQuery("");
+    setFoodResults([]);
+  };
   const [showPromo, setShowPromo] = useState(false);
   const [promoCode, setPromoCode] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
@@ -819,6 +1195,7 @@ export default function TrackerPage() {
     meal:   { icon: "🍽️", label: "Meal photo" },
     label:  { icon: "🏷️", label: "Nutrition label" },
     text:   { icon: "✏️", label: "Describe it" },
+    search: { icon: "🔍", label: "Search food" },
   } as const;
 
   if (!ready) return (
@@ -867,10 +1244,6 @@ export default function TrackerPage() {
               className="w-9 h-9 rounded-full flex items-center justify-center text-xl border-2 border-gray-200 dark:border-zinc-700"
               style={{ background: profile!.avatar_bg }}>{profile!.avatar}</button>
           )}
-          <button onClick={() => setShowFeedback(true)}
-            className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 transition-colors px-2 py-1.5 rounded-full border border-gray-200 dark:border-zinc-700">
-            <span>💬</span>
-          </button>
           <button onClick={handleSignOut}
             className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full px-3 py-1.5">
             {profile!.photo_url ? (
@@ -882,18 +1255,6 @@ export default function TrackerPage() {
           </button>
         </div>
       </div>
-
-      {/* Remaining analyses nudge */}
-      {!profile?.is_pro && usageCount > 0 && usageCount < 5 && (
-        <div className="mb-3 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl flex items-center justify-between">
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            {5 - usageCount} free {5 - usageCount === 1 ? "analysis" : "analyses"} remaining today
-          </p>
-          <button onClick={() => setShowUpgrade(true)} className="text-xs font-medium text-amber-700 dark:text-amber-400 underline">
-            Upgrade
-          </button>
-        </div>
-      )}
 
       {/* Pro badge if user is pro */}
       {profile?.is_pro && (
@@ -978,7 +1339,7 @@ export default function TrackerPage() {
           <p className="text-xs font-medium text-gray-400 mb-2">Add new</p>
           <div className="flex gap-2 mb-4">
             {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
-              <button key={key} onClick={() => { setInputMode(key); setPreview(null); setPendingFile(null); setClar(null); setError(""); }}
+              <button key={key} onClick={() => { setInputMode(key); resetAdd(); }}
                 className="flex-1 py-2 px-1 text-xs rounded-xl border transition-colors"
                 style={{
                   background: inputMode === key ? "#f3f4f6" : "transparent",
@@ -1015,8 +1376,58 @@ export default function TrackerPage() {
             </div>
           )}
 
+          {inputMode === "search" && (
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  value={foodQuery}
+                  onChange={e => setFoodQuery(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && searchOpenFoodFacts(foodQuery)}
+                  placeholder="Search by food name or brand…"
+                  className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none focus:border-gray-400"
+                />
+                <button onClick={() => searchOpenFoodFacts(foodQuery)} disabled={foodSearching || !foodQuery.trim()}
+                  className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-40">
+                  {foodSearching ? "…" : "Search"}
+                </button>
+              </div>
+              {foodSearchError && <p className="text-red-500 text-xs">{foodSearchError}</p>}
+              {foodResults.length > 0 && (
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {foodResults.map((product, i) => {
+                    const n = product.nutriments;
+                    const kcal = Math.round(n["energy-kcal_100g"] ?? n["energy-kcal"] ?? 0);
+                    const prot = Math.round(n["proteins_100g"] ?? 0);
+                    const carb = Math.round(n["carbohydrates_100g"] ?? 0);
+                    const fat  = Math.round(n["fat_100g"] ?? 0);
+                    const name = `${product.brands ? product.brands + " — " : ""}${product.product_name}`.trim();
+                    return (
+                      <button key={i} onClick={() => handleFoodSelect(product)}
+                        className="w-full text-left bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl p-3 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                        <div className="flex items-start gap-3">
+                          {product.image_thumb_url && (
+                            <img src={product.image_thumb_url} alt={name} className="w-10 h-10 rounded-lg object-cover flex-shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{name}</p>
+                            <p className="text-xs text-gray-400">{product.serving_size ?? "per 100g"}</p>
+                            <div className="flex gap-3 mt-1">
+                              <span className="text-xs font-medium" style={{color:"var(--cal)"}}>{kcal} kcal</span>
+                              <span className="text-xs" style={{color:"var(--prot)"}}>P: {prot}g</span>
+                              <span className="text-xs" style={{color:"var(--carb)"}}>C: {carb}g</span>
+                              <span className="text-xs" style={{color:"var(--fat)"}}>F: {fat}g</span>
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
-          {!clarification && (
+          {!clarification && inputMode !== "search" && (
             <div className="space-y-3">
               {inputMode !== "text" && (
                 !preview ? (
@@ -1090,12 +1501,12 @@ export default function TrackerPage() {
 
       {/* History */}
       {tab === "history" && (() => {
-        const grouped = historyMeals.reduce<Record<string, Meal[]>>((acc, m) => {
+        const grouped = meals.reduce<Record<string, Meal[]>>((acc, m) => {
           acc[m.meal_date] = acc[m.meal_date] || []; acc[m.meal_date].push(m); return acc;
         }, {});
         return (
           <div>
-            <button onClick={async () => { const all = await getAllMeals(userId); exportMealsCSV(all, profile!.name); }}
+            <button onClick={() => exportMealsCSV(meals, profile!.name)}
               className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
               <span>📥</span> Export my food log (CSV)
             </button>
@@ -1184,71 +1595,13 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Body stats + manage subscription footer */}
-      <div className="mt-6 mb-2 flex items-center justify-center gap-4">
-        <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
-          className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-          ⚖️ My stats
+      {/* Feedback button */}
+      <div className="mt-6 mb-2 text-center">
+        <button onClick={() => setShowFeedback(true)}
+          className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
+          <span>💬</span> Send us a message
         </button>
-        {profile?.is_pro && (
-          <button onClick={handleManageSubscription}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            💳 Manage subscription
-          </button>
-        )}
       </div>
-
-      {/* Body stats modal */}
-      {showBodyStats && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-medium text-sm">My stats</p>
-              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
-                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
-                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
-                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
-                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
-                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
-                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
-                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
-                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
-                    <option value="">Select</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowBodyStats(false)}
-                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
-              <button onClick={handleSaveBodyStats} disabled={savingStats}
-                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
-                {savingStats ? "Saving…" : "Save stats"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Upgrade modal */}
       {showUpgrade && (
@@ -1316,6 +1669,80 @@ export default function TrackerPage() {
           </div>
         </div>
       )}
+      {/* Footer actions */}
+      <div className="mt-6 mb-4 space-y-2">
+        <div className="flex items-center justify-center gap-4 flex-wrap">
+          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            ⚖️ My stats
+          </button>
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            🔒 Privacy
+          </a>
+          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            👤 My account
+          </a>
+        </div>
+        {profile?.is_pro && (
+          <button onClick={handleManageSubscription}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            💳 Manage or cancel subscription
+          </button>
+        )}
+      </div>
+
+      {/* Body stats modal */}
+      {showBodyStats && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">My stats</p>
+              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
+                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats(s => ({...s, weight_kg: e.target.value}))}
+                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
+                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats(s => ({...s, height_cm: e.target.value}))}
+                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats(s => ({...s, age: e.target.value}))}
+                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <select value={bodyStats.gender} onChange={e => setBodyStats(s => ({...s, gender: e.target.value}))}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400">
+                    <option value="">Select</option>
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setShowBodyStats(false)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleSaveBodyStats} disabled={savingStats}
+                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {savingStats ? "Saving…" : "Save stats"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
