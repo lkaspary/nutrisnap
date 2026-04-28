@@ -4,10 +4,12 @@ import { useState } from "react";
 export default function AccountPage() {
   const [email, setEmail] = useState("");
   const [step, setStep] = useState<"idle" | "confirm_delete" | "deleting" | "deleted" | "error">("idle");
+  const [deleting, setDeleting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
   const handleDelete = async () => {
     if (!email.trim()) return;
+    setDeleting(true);
     setStep("deleting");
     try {
       const res = await fetch("/api/account/delete", {
@@ -97,9 +99,9 @@ export default function AccountPage() {
                       className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">
                       Cancel
                     </button>
-                    <button onClick={handleDelete} disabled={step === "deleting"}
+                    <button onClick={handleDelete} disabled={deleting}
                       className="flex-[2] bg-red-500 text-white rounded-xl py-2.5 text-sm font-medium hover:bg-red-600 disabled:opacity-40">
-                      {step === "deleting" ? "Deleting…" : "Yes, delete everything"}
+                      {deleting ? "Deleting…" : "Yes, delete everything"}
                     </button>
                   </div>
                 </div>
