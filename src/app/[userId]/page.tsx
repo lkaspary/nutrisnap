@@ -506,7 +506,7 @@ export default function TrackerPage() {
   const [ready, setReady] = useState(false);
 
   const [tab, setTab] = useState<"today" | "history" | "add">("add");
-  const [inputMode, setInputMode] = useState<"meal" | "label" | "text" | "search">("text");
+  const [inputMode, setInputMode] = useState<"meal" | "label" | "text">("text");
   const [textInput, setTextInput] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -827,7 +827,6 @@ export default function TrackerPage() {
     meal:   { icon: "🍽️", label: "Meal photo" },
     label:  { icon: "🏷️", label: "Nutrition label" },
     text:   { icon: "✏️", label: "Describe it" },
-    search: { icon: "🔍", label: "Search food" },
   } as const;
 
   if (!ready) return (
@@ -1009,7 +1008,7 @@ export default function TrackerPage() {
           )}
 
 
-          {!clarification && inputMode !== "search" && (
+          {!clarification && (
             <div className="space-y-3">
               {inputMode !== "text" && (
                 !preview ? (
