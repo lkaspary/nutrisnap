@@ -950,12 +950,12 @@ export default function TrackerPage() {
               style={{ width: `${Math.min((totals.protein / PROTEIN_GOAL) * 100, 100)}%`, background: "var(--prot)" }} />
           </div>
           <p className="text-xs text-gray-400 mt-1">{totals.protein}g / {PROTEIN_GOAL}g protein</p>
-          {streak > 0 && (
-            <div className="mt-2 flex items-center gap-1">
-              <span className="text-sm">🔥</span>
-              <span className="text-xs font-semibold text-orange-500">{streak}-day streak</span>
-            </div>
-          )}
+          <div className="mt-2 flex items-center gap-1">
+            <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
+            <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
+              {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1111,7 +1111,7 @@ export default function TrackerPage() {
 
           <div className="mt-6">
             <p className="text-xs font-medium text-gray-400 mb-2">Recent foods</p>
-            <FoodSearch meals={meals} onRelog={handleRelog} />
+            <FoodSearch meals={historyMeals.length > 0 ? historyMeals : meals} onRelog={handleRelog} />
           </div>
         </div>
       )}
