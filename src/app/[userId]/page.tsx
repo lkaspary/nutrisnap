@@ -309,6 +309,17 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
 }
 
 // ── FoodSearch ────────────────────────────────────────────────────────────────
+function fuzzyMatch(name: string, query: string): boolean {
+  const n = name.toLowerCase();
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  // Exact substring match first
+  if (n.includes(q)) return true;
+  // All words in query must appear somewhere in name
+  const words = q.split(/\s+/);
+  return words.every(w => n.includes(w));
+}
+
 function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => void }) {
   const [q, setQ] = useState("");
   const unique = useMemo(() => {
@@ -317,7 +328,7 @@ function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => v
       .forEach(m => { if (!seen.has(m.name.toLowerCase())) seen.set(m.name.toLowerCase(), m); });
     return Array.from(seen.values());
   }, [meals]);
-  const filtered = q.trim() ? unique.filter(m => m.name.toLowerCase().includes(q.toLowerCase())) : unique.slice(0, 8);
+  const filtered = q.trim() ? unique.filter(m => fuzzyMatch(m.name, q)) : unique.slice(0, 8);
   return (
     <div className="mb-4">
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search previously logged foods…"
@@ -521,6 +532,7 @@ export default function TrackerPage() {
   const [showBodyStats, setShowBodyStats] = useState(false);
   const [bodyStats, setBodyStats] = useState({ weight_kg: "", height_cm: "", age: "", gender: "" });
   const [savingStats, setSavingStats] = useState(false);
+  const [useImperial, setUseImperial] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [chartType, setChartType] = useState<ChartType>("calories");
@@ -591,6 +603,24 @@ export default function TrackerPage() {
 
   const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
   const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
+
+  // ── Streak counter ────────────────────────────────────────────────────────
+  const streak = useMemo(() => {
+    const loggedDates = new Set([
+      ...historyMeals.map(m => m.meal_date),
+      ...(todayMeals.length > 0 ? [today] : []),
+    ]);
+    let count = 0;
+    const d = new Date();
+    if (!loggedDates.has(today)) d.setDate(d.getDate() - 1);
+    while (true) {
+      const dateStr = d.toISOString().split("T")[0];
+      if (!loggedDates.has(dateStr)) break;
+      count++;
+      d.setDate(d.getDate() - 1);
+    }
+    return count;
+  }, [historyMeals, todayMeals, today]);
 
   const handleAddMeal = useCallback(async (
     result: Omit<Meal, "id" | "logged_at" | "profile_id" | "image_url" | "meal_date" | "meal_type" | "meal_time">,
@@ -920,6 +950,12 @@ export default function TrackerPage() {
               style={{ width: `${Math.min((totals.protein / PROTEIN_GOAL) * 100, 100)}%`, background: "var(--prot)" }} />
           </div>
           <p className="text-xs text-gray-400 mt-1">{totals.protein}g / {PROTEIN_GOAL}g protein</p>
+          {streak > 0 && (
+            <div className="mt-2 flex items-center gap-1">
+              <span className="text-sm">🔥</span>
+              <span className="text-xs font-semibold text-orange-500">{streak}-day streak</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1269,56 +1305,111 @@ export default function TrackerPage() {
       </div>
 
       {/* Body stats modal */}
-      {showBodyStats && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
-          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <p className="font-medium text-sm">My stats</p>
-              <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
-            </div>
-            <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
-            <div className="space-y-3">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Weight (kg)</label>
-                  <input type="number" value={bodyStats.weight_kg} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, weight_kg: e.target.value}))}
-                    placeholder="70" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none" />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Height (cm)</label>
-                  <input type="number" value={bodyStats.height_cm} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, height_cm: e.target.value}))}
-                    placeholder="175" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none" />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
-                  <input type="number" value={bodyStats.age} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, age: e.target.value}))}
-                    placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none" />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
-                  <select value={bodyStats.gender} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, gender: e.target.value}))}
-                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none">
-                    <option value="">Select</option>
-                    <option value="male">Male</option>
-                    <option value="female">Female</option>
-                    <option value="other">Other</option>
-                  </select>
+      {showBodyStats && (() => {
+        // Display values in selected unit
+        const weightDisplay = useImperial && bodyStats.weight_kg
+          ? String(Math.round(parseFloat(bodyStats.weight_kg) * 2.2046 * 10) / 10)
+          : bodyStats.weight_kg;
+        const heightKg = bodyStats.height_cm ? parseFloat(bodyStats.height_cm) : 0;
+        const heightFt = useImperial ? Math.floor(heightKg / 30.48) : 0;
+        const heightIn = useImperial ? Math.round((heightKg / 2.54) % 12) : 0;
+        const heightDisplay = useImperial && bodyStats.height_cm ? String(heightFt) : bodyStats.height_cm;
+        const heightInDisplay = useImperial && bodyStats.height_cm ? String(heightIn) : "";
+        return (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+            <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-medium text-sm">My stats</p>
+                <div className="flex items-center gap-2">
+                  {/* Unit toggle */}
+                  <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
+                    <button onClick={() => setUseImperial(false)}
+                      className="px-2 py-1 rounded-md transition-all"
+                      style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#9ca3af" }}>
+                      kg/cm
+                    </button>
+                    <button onClick={() => setUseImperial(true)}
+                      className="px-2 py-1 rounded-md transition-all"
+                      style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#9ca3af" }}>
+                      lbs/ft
+                    </button>
+                  </div>
+                  <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
                 </div>
               </div>
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => setShowBodyStats(false)}
-                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
-              <button onClick={handleSaveBodyStats} disabled={savingStats}
-                className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
-                {savingStats ? "Saving…" : "Save stats"}
-              </button>
+              <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">Weight ({useImperial ? "lbs" : "kg"})</label>
+                    <input type="number" value={weightDisplay}
+                      onChange={e => {
+                        const val = e.target.value;
+                        const kg = useImperial ? String(Math.round(parseFloat(val) / 2.2046 * 10) / 10) : val;
+                        setBodyStats((s: typeof bodyStats) => ({...s, weight_kg: kg}));
+                      }}
+                      placeholder={useImperial ? "154" : "70"}
+                      className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">Height ({useImperial ? "ft" : "cm"})</label>
+                    {useImperial ? (
+                      <div className="flex gap-1">
+                        <input type="number" value={heightDisplay}
+                          onChange={e => {
+                            const ft = parseFloat(e.target.value) || 0;
+                            const cm = String(Math.round((ft * 30.48) + (heightIn * 2.54)));
+                            setBodyStats((s: typeof bodyStats) => ({...s, height_cm: cm}));
+                          }}
+                          placeholder="5"
+                          className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none" />
+                        <input type="number" value={heightInDisplay}
+                          onChange={e => {
+                            const inches = parseFloat(e.target.value) || 0;
+                            const cm = String(Math.round((heightFt * 30.48) + (inches * 2.54)));
+                            setBodyStats((s: typeof bodyStats) => ({...s, height_cm: cm}));
+                          }}
+                          placeholder="in"
+                          className="w-16 border border-gray-200 dark:border-zinc-600 rounded-xl px-2 py-2 text-sm bg-transparent outline-none" />
+                      </div>
+                    ) : (
+                      <input type="number" value={bodyStats.height_cm}
+                        onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, height_cm: e.target.value}))}
+                        placeholder="175"
+                        className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none" />
+                    )}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                    <input type="number" value={bodyStats.age} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, age: e.target.value}))}
+                      placeholder="30" className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none" />
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                    <select value={bodyStats.gender} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, gender: e.target.value}))}
+                      className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none">
+                      <option value="">Select</option>
+                      <option value="male">Male</option>
+                      <option value="female">Female</option>
+                      <option value="other">Other</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => setShowBodyStats(false)}
+                  className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+                <button onClick={handleSaveBodyStats} disabled={savingStats}
+                  className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                  {savingStats ? "Saving…" : "Save stats"}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
     </div>
   );
