@@ -71,6 +71,20 @@ export async function POST(req: NextRequest) {
       }, { onConflict: "profile_id,date" });
     }
 
+    // ── #25: Weekly insights mode (no usage count deduction) ─────────────────
+    if (mode === "insights") {
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 400,
+        messages: [{ role: "user", content: text }],
+      });
+      const insights = response.content
+        .filter(b => b.type === "text")
+        .map(b => (b as { type: "text"; text: string }).text)
+        .join("");
+      return NextResponse.json({ insights });
+    }
+
     // ── #17: Check OpenFoodFacts first for text mode ─────────────────────────
     if (mode === "text" && text && text.trim().length > 2 && !clarification) {
       try {

@@ -1,6 +1,31 @@
 export const DAILY_GOAL = 2400;
 export const PROTEIN_GOAL = 190;
 
+// #30 — Calculate personalized calorie goal from body stats using Mifflin-St Jeor BMR
+// Returns null if insufficient data, falls back to DAILY_GOAL in the UI
+export function calcCalorieGoal(stats: {
+  weight_kg: number | null;
+  height_cm: number | null;
+  age: number | null;
+  gender: string | null;
+}): number | null {
+  const { weight_kg, height_cm, age, gender } = stats;
+  if (!weight_kg || !height_cm || !age || !gender) return null;
+  // Mifflin-St Jeor
+  const bmr =
+    gender === "male"
+      ? 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
+      : 10 * weight_kg + 6.25 * height_cm - 5 * age - 161;
+  // Multiply by 1.55 (moderately active) and round to nearest 50
+  return Math.round((bmr * 1.55) / 50) * 50;
+}
+
+// #30 — Protein goal: 1g per lb of bodyweight, or fallback
+export function calcProteinGoal(weight_kg: number | null): number {
+  if (!weight_kg) return PROTEIN_GOAL;
+  return Math.round(weight_kg * 2.2);
+}
+
 export function todayISO(): string {
   const now = new Date();
   const y = now.getFullYear();

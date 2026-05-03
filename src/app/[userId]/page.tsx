@@ -8,7 +8,7 @@ import {
 import {
   sumMacros, todayISO, getLast7Days,
   fmtShort, fmtWeek, fmtMonth, getWeekStart,
-  DAILY_GOAL, PROTEIN_GOAL,
+  DAILY_GOAL, PROTEIN_GOAL, calcCalorieGoal, calcProteinGoal,
 } from "@/lib/utils";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -125,8 +125,42 @@ function MealTimeEditor({
   mealTime: Date; mealType: MealType;
   onChange: (d: Date) => void; onTypeChange: (t: MealType) => void;
 }) {
+  // Build last-7-days options for back-dating (#26)
+  const dateOptions = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const iso = d.toISOString().split("T")[0];
+      const label = i === 0 ? "Today" : i === 1 ? "Yesterday" : d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+      return { iso, label };
+    });
+  }, []);
+
+  const selectedDate = mealTime.toISOString().split("T")[0];
+
+  const handleDateChange = (iso: string) => {
+    const [y, m, d] = iso.split("-").map(Number);
+    const next = new Date(mealTime);
+    next.setFullYear(y, m - 1, d);
+    onChange(next);
+  };
+
   return (
     <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
+      {/* Date selector */}
+      <p className="text-xs font-medium text-gray-400 mb-2">Log date</p>
+      <div className="flex gap-1 overflow-x-auto pb-1 mb-3 scrollbar-hide">
+        {dateOptions.map(({ iso, label }) => (
+          <button key={iso} onClick={() => handleDateChange(iso)}
+            className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border transition-all whitespace-nowrap"
+            style={{
+              background: selectedDate === iso ? "#111" : "transparent",
+              borderColor: selectedDate === iso ? "#111" : "#e5e7eb",
+              color: selectedDate === iso ? "#fff" : "#9ca3af",
+              fontWeight: selectedDate === iso ? 600 : 400,
+            }}>{label}</button>
+        ))}
+      </div>
       <p className="text-xs font-medium text-gray-400 mb-2">Meal type</p>
       <div className="grid grid-cols-4 gap-1.5 mb-3">
         {MEAL_TYPES.map(({ key, label, emoji }) => {
@@ -159,10 +193,10 @@ function MealTimeEditor({
 
 // ── BarChart ──────────────────────────────────────────────────────────────────
 type ChartType = "calories" | "protein";
-function BarChart({ meals, type, onBarClick }: { meals: Meal[]; type: ChartType; onBarClick: () => void }) {
+function BarChart({ meals, type, onBarClick, calorieGoal: calGoal, proteinGoal: protGoal }: { meals: Meal[]; type: ChartType; onBarClick: () => void; calorieGoal: number; proteinGoal: number }) {
   const [showAvg, setShowAvg] = useState(false);
   const days = getLast7Days();
-  const goal = type === "calories" ? DAILY_GOAL : PROTEIN_GOAL;
+  const goal = type === "calories" ? calGoal : protGoal;
   const color = type === "calories" ? "var(--cal)" : "var(--prot)";
   const data = days.map(date => {
     const dayMeals = meals.filter(m => m.meal_date === date);
@@ -309,15 +343,13 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
 }
 
 // ── FoodSearch ────────────────────────────────────────────────────────────────
-function fuzzyMatch(name: string, query: string): boolean {
-  const n = name.toLowerCase();
+function fuzzyMatch(name: string, notes: string | null, query: string): boolean {
+  const haystack = (name + " " + (notes ?? "")).toLowerCase();
   const q = query.toLowerCase().trim();
   if (!q) return true;
-  // Exact substring match first
-  if (n.includes(q)) return true;
-  // All words in query must appear somewhere in name
+  if (haystack.includes(q)) return true;
   const words = q.split(/\s+/);
-  return words.every(w => n.includes(w));
+  return words.every(w => haystack.includes(w));
 }
 
 function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => void }) {
@@ -328,7 +360,7 @@ function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => v
       .forEach(m => { if (!seen.has(m.name.toLowerCase())) seen.set(m.name.toLowerCase(), m); });
     return Array.from(seen.values());
   }, [meals]);
-  const filtered = q.trim() ? unique.filter(m => fuzzyMatch(m.name, q)) : unique.slice(0, 8);
+  const filtered = q.trim() ? unique.filter(m => fuzzyMatch(m.name, m.notes, q)) : unique.slice(0, 8);
   return (
     <div className="mb-4">
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search previously logged foods…"
@@ -542,11 +574,18 @@ export default function TrackerPage() {
   const [pendingMealTime, setPendingMealTime] = useState<Date>(() => floorTo30(new Date()));
   const [pendingMealType, setPendingMealType] = useState<MealType>(() => suggestMealType(new Date()));
   const [dayConfirmed, setDayConfirmed] = useState(false);
+  const [waterGlasses, setWaterGlasses] = useState(0);       // #22
+  const [showInsights, setShowInsights] = useState(false);   // #25
+  const [insightsText, setInsightsText] = useState("");      // #25
+  const [insightsLoading, setInsightsLoading] = useState(false); // #25
   const today = todayISO();
 
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
+    // #22 load water for today
+    const w = localStorage.getItem(`water:${userId}:${today}`);
+    if (w) setWaterGlasses(parseInt(w) || 0);
     import("@/lib/supabase").then(({ supabase }) => {
       supabase.from("day_confirmed")
         .select("date")
@@ -604,6 +643,10 @@ export default function TrackerPage() {
   const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
   const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
 
+  // #30 — personalized goals from BMR, fallback to constants
+  const calorieGoal = useMemo(() => calcCalorieGoal(profile ?? { weight_kg: null, height_cm: null, age: null, gender: null }) ?? DAILY_GOAL, [profile]);
+  const proteinGoal = useMemo(() => calcProteinGoal(profile?.weight_kg ?? null), [profile]);
+
   // ── Streak counter ────────────────────────────────────────────────────────
   const streak = useMemo(() => {
     const loggedDates = new Set([
@@ -626,17 +669,23 @@ export default function TrackerPage() {
     result: Omit<Meal, "id" | "logged_at" | "profile_id" | "image_url" | "meal_date" | "meal_type" | "meal_time">,
     imgUrl?: string, mealType?: MealType, mealTime?: Date,
   ) => {
+    const mt = mealTime ?? pendingMealTime;
+    const mealDate = mt.toISOString().split("T")[0]; // #26 use date from picker
     const saved = await addMeal({
       ...result, profile_id: userId,
       image_url: imgUrl ?? null,
-      meal_date: today,
+      meal_date: mealDate,
       meal_type: mealType ?? pendingMealType,
-      meal_time: (mealTime ?? pendingMealTime).toISOString(),
+      meal_time: mt.toISOString(),
     });
     setMeals(prev => [saved, ...prev]);
+    // Also refresh history if back-dated
+    if (mealDate !== today) {
+      setHistoryMeals(prev => [saved, ...prev]);
+    }
     setPreview(null); setPendingFile(null); setTextInput("");
     setClar(null); setPendingB64(null); setPendingMime(null);
-    setTab("today");
+    setTab(mealDate === today ? "today" : "history");
   }, [userId, today, pendingMealType, pendingMealTime]);
 
   const handleDeleteMeal = useCallback(async (id: string) => {
@@ -648,6 +697,43 @@ export default function TrackerPage() {
     const updated = await updateMeal(id, updates);
     setMeals(prev => prev.map(m => m.id === id ? updated : m));
   }, []);
+
+  // #25 — Weekly diet insights via Claude API
+  const fetchInsights = async () => {
+    setInsightsLoading(true);
+    setShowInsights(true);
+    setInsightsText("");
+    try {
+      const last7 = getLast7Days();
+      const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
+      const mealSummary = last7.map(date => {
+        const dayMeals = weekMeals.filter(m => m.meal_date === date);
+        if (dayMeals.length === 0) return `${date}: no meals logged`;
+        const t = sumMacros(dayMeals);
+        return `${date}: ${t.calories} kcal, P:${t.protein}g C:${t.carbs}g F:${t.fat}g (${dayMeals.map(m => m.name).join(", ")})`;
+      }).join("\n");
+
+      const statsStr = profile
+        ? `User: ${profile.gender ?? "unknown"} gender, ${profile.age ?? "?"} years old, ${profile.weight_kg ?? "?"}kg, ${profile.height_cm ?? "?"}cm. Calorie goal: ${calorieGoal} kcal/day.`
+        : "No body stats available.";
+
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "insights",
+          text: `${statsStr}\n\nLast 7 days of meals:\n${mealSummary}\n\nGive a short, friendly, personal weekly nutrition summary (3–5 sentences max). Highlight patterns, best day, any concerns, and one actionable tip. Be encouraging and specific.`,
+          base64: null, mimeType: null, clarification: null, profileId: userId,
+        }),
+      }).then(r => r.json());
+
+      setInsightsText(res.insights ?? res.error ?? "Couldn't generate insights right now.");
+    } catch {
+      setInsightsText("Couldn't generate insights right now. Try again later.");
+    } finally {
+      setInsightsLoading(false);
+    }
+  };
 
   const handleSignOut = async () => {
     const { supabase: sb } = await import("@/lib/supabase");
@@ -928,36 +1014,89 @@ export default function TrackerPage() {
       )}
 
       {/* Daily summary */}
-      <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4 flex items-center gap-4">
-        <CalorieRing eaten={totals.calories} goal={DAILY_GOAL} />
-        <div className="flex-1">
-          <div className="grid grid-cols-3 gap-2 mb-2">
-            {([
-              ["Protein", totals.protein, "g", "var(--prot)"],
-              ["Carbs",   totals.carbs,   "g", "var(--carb)"],
-              ["Fat",     totals.fat,     "g", "var(--fat)"],
-            ] as [string, number, string, string][]).map(([l, v, u, c]) => (
-              <div key={l} className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-2 text-center">
-                <p className="text-xs text-gray-400">{l}</p>
-                <p className="text-sm font-medium" style={{ color: c }}>
-                  {v}<span className="text-xs font-normal">{u}</span>
-                </p>
-              </div>
-            ))}
-          </div>
-          <div className="bg-gray-100 dark:bg-zinc-700 rounded-full h-1.5 overflow-hidden">
-            <div className="h-full rounded-full transition-all"
-              style={{ width: `${Math.min((totals.protein / PROTEIN_GOAL) * 100, 100)}%`, background: "var(--prot)" }} />
-          </div>
-          <p className="text-xs text-gray-400 mt-1">{totals.protein}g / {PROTEIN_GOAL}g protein</p>
-          <div className="mt-2 flex items-center gap-1">
-            <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
-            <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
-              {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
-            </span>
+      <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
+        <div className="flex items-center gap-4 mb-3">
+          <CalorieRing eaten={totals.calories} goal={calorieGoal} />
+          <div className="flex-1">
+            <div className="grid grid-cols-3 gap-2 mb-2">
+              {([
+                ["Protein", totals.protein, "g", "var(--prot)"],
+                ["Carbs",   totals.carbs,   "g", "var(--carb)"],
+                ["Fat",     totals.fat,     "g", "var(--fat)"],
+              ] as [string, number, string, string][]).map(([l, v, u, c]) => (
+                <div key={l} className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-2 text-center">
+                  <p className="text-xs text-gray-400">{l}</p>
+                  <p className="text-sm font-medium" style={{ color: c }}>
+                    {v}<span className="text-xs font-normal">{u}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="bg-gray-100 dark:bg-zinc-700 rounded-full h-1.5 overflow-hidden">
+              <div className="h-full rounded-full transition-all"
+                style={{ width: `${Math.min((totals.protein / proteinGoal) * 100, 100)}%`, background: "var(--prot)" }} />
+            </div>
+            <p className="text-xs text-gray-400 mt-1">{totals.protein}g / {proteinGoal}g protein</p>
+            <div className="mt-2 flex items-center gap-1">
+              <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
+              <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
+                {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
+              </span>
+            </div>
           </div>
         </div>
+
+        {/* #22 — Water tracker */}
+        <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 rounded-xl px-3 py-2 mb-2">
+          <div className="flex items-center gap-2">
+            <span className="text-base">💧</span>
+            <div>
+              <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Water</p>
+              <p className="text-xs text-gray-400">{waterGlasses} / 8 glasses</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => {
+              const next = Math.max(0, waterGlasses - 1);
+              setWaterGlasses(next);
+              localStorage.setItem(`water:${userId}:${today}`, String(next));
+            }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">−</button>
+            <div className="flex gap-0.5">
+              {Array.from({ length: 8 }).map((_, i) => (
+                <div key={i} className="w-2 h-3 rounded-sm" style={{ background: i < waterGlasses ? "#3B82F6" : "#e5e7eb" }} />
+              ))}
+            </div>
+            <button onClick={() => {
+              const next = Math.min(8, waterGlasses + 1);
+              setWaterGlasses(next);
+              localStorage.setItem(`water:${userId}:${today}`, String(next));
+            }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">+</button>
+          </div>
+        </div>
+
+        {/* #25 — Weekly insights button */}
+        <button onClick={fetchInsights}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+          <span>🧠</span> Weekly diet insights
+        </button>
       </div>
+
+      {/* #25 — Insights panel */}
+      {showInsights && (
+        <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-sm font-semibold">🧠 Weekly Insights</p>
+            <button onClick={() => setShowInsights(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
+          </div>
+          {insightsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400 py-4 justify-center">
+              <span className="animate-pulse">⏳</span> Analyzing your week…
+            </div>
+          ) : (
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{insightsText}</p>
+          )}
+        </div>
+      )}
 
       {/* Charts */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
@@ -970,7 +1109,7 @@ export default function TrackerPage() {
             </button>
           ))}
         </div>
-        <BarChart meals={meals} type={chartType} onBarClick={() => setShowAnalytics(p => !p)} />
+        <BarChart meals={meals} type={chartType} onBarClick={() => setShowAnalytics(p => !p)} calorieGoal={calorieGoal} proteinGoal={proteinGoal} />
         {showAnalytics && <AnalyticsTable meals={meals} onClose={() => setShowAnalytics(false)} />}
       </div>
 
