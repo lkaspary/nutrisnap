@@ -2,6 +2,9 @@ import { supabase } from "@/lib/supabase";
 const createClient = () => supabase;
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+export type ActivityLevel = "sedentary" | "light" | "moderate" | "active";
+export type GoalType = "lose" | "maintain" | "gain";
+
 export interface Profile {
   id: string;
   user_id: string | null;
@@ -16,6 +19,9 @@ export interface Profile {
   height_cm: number | null;
   age: number | null;
   gender: "male" | "female" | "other" | null;
+  onboarded_at: string | null;
+  activity_level: ActivityLevel | null;
+  goal_type: GoalType | null;
 }
 
 export type MealType = "breakfast" | "lunch" | "snack" | "dinner";
@@ -44,7 +50,7 @@ export async function getProfiles(): Promise<Profile[]> {
   const sb = createClient();
   const { data, error } = await sb
     .from("profiles")
-    .select("id, user_id, name, avatar, avatar_bg, photo_url, created_at, is_pro, stripe_customer_id, weight_kg, height_cm, age, gender")
+    .select("id, user_id, name, avatar, avatar_bg, photo_url, created_at, is_pro, stripe_customer_id, weight_kg, height_cm, age, gender, onboarded_at, activity_level, goal_type")
     .order("created_at", { ascending: true });
   if (error) throw error;
   return (data ?? []).map(p => ({
@@ -57,6 +63,9 @@ export async function getProfiles(): Promise<Profile[]> {
     height_cm: p.height_cm ?? null,
     age: p.age ?? null,
     gender: p.gender ?? null,
+    onboarded_at: p.onboarded_at ?? null,
+    activity_level: p.activity_level ?? null,
+    goal_type: p.goal_type ?? null,
   }));
 }
 
@@ -163,6 +172,21 @@ export async function updateBodyStats(profileId: string, stats: BodyStats): Prom
   const { error } = await sb
     .from("profiles")
     .update(stats)
+    .eq("id", profileId);
+  if (error) throw error;
+}
+
+export async function markOnboarded(
+  profileId: string,
+  stats: BodyStats & { activity_level: ActivityLevel; goal_type: GoalType }
+): Promise<void> {
+  const sb = createClient();
+  const { error } = await sb
+    .from("profiles")
+    .update({
+      ...stats,
+      onboarded_at: new Date().toISOString(),
+    })
     .eq("id", profileId);
   if (error) throw error;
 }

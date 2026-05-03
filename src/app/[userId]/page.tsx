@@ -2,8 +2,8 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useRouter, useParams, useSearchParams } from "next/navigation";
 import {
-  getProfiles, getMeals, getMeals30Days, getAllMeals, addMeal, deleteMeal, updateMeal,
-  type Profile, type Meal, type MealType,
+  getProfiles, getMeals, getMeals30Days, getAllMeals, addMeal, deleteMeal, updateMeal, markOnboarded,
+  type Profile, type Meal, type MealType, type ActivityLevel, type GoalType,
 } from "@/lib/db";
 import {
   sumMacros, todayISO, getLast7Days,
@@ -99,6 +99,246 @@ function exportMealsCSV(meals: Meal[], profileName: string) {
   a.download = `nutrisnap-${profileName.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+// ── Onboarding ────────────────────────────────────────────────────────────────
+function OnboardingFlow({
+  profile,
+  onComplete,
+}: {
+  profile: Profile;
+  onComplete: (stats: {
+    weight_kg: number | null; height_cm: number | null;
+    age: number | null; gender: string;
+    activity_level: ActivityLevel; goal_type: GoalType;
+  }) => void;
+}) {
+  const [step, setStep] = useState(0);
+  const [weight, setWeight]     = useState("");
+  const [height, setHeight]     = useState("");
+  const [age, setAge]           = useState("");
+  const [gender, setGender]     = useState<"male"|"female"|"other"|"">("");
+  const [activity, setActivity] = useState<ActivityLevel | "">("");
+  const [goal, setGoal]         = useState<GoalType | "">("");
+  const [useImperial, setUseImperial] = useState(false);
+  const [saving, setSaving]     = useState(false);
+
+  const weightKg = useImperial && weight ? Math.round(parseFloat(weight) / 2.2046 * 10) / 10 : parseFloat(weight) || null;
+  const heightCm = useImperial && height ? Math.round(parseFloat(height) * 30.48 + (parseFloat("0") * 2.54)) : parseFloat(height) || null;
+
+  const previewGoal = calcCalorieGoal({
+    weight_kg: weightKg, height_cm: heightCm,
+    age: parseFloat(age) || null, gender: gender || null,
+    activity_level: activity || null, goal_type: goal || null,
+  });
+
+  const ACTIVITIES: { key: ActivityLevel; label: string; desc: string; emoji: string }[] = [
+    { key: "sedentary", label: "Sedentary",  desc: "Desk job, little exercise",       emoji: "🪑" },
+    { key: "light",     label: "Light",      desc: "Light exercise 1–3×/week",        emoji: "🚶" },
+    { key: "moderate",  label: "Moderate",   desc: "Exercise 3–5×/week",              emoji: "🏃" },
+    { key: "active",    label: "Active",     desc: "Hard exercise 6–7×/week",         emoji: "💪" },
+  ];
+
+  const GOALS: { key: GoalType; label: string; desc: string; emoji: string; adj: string }[] = [
+    { key: "lose",     label: "Lose weight",    desc: "−300 kcal/day deficit",   emoji: "📉", adj: "text-blue-500" },
+    { key: "maintain", label: "Stay the same",  desc: "Maintain current weight", emoji: "⚖️",  adj: "text-green-500" },
+    { key: "gain",     label: "Build muscle",   desc: "+300 kcal/day surplus",   emoji: "📈", adj: "text-orange-500" },
+  ];
+
+  const handleFinish = async () => {
+    setSaving(true);
+    const stats = {
+      weight_kg: weightKg,
+      height_cm: heightCm,
+      age: parseFloat(age) || null,
+      gender: gender || "other",
+      activity_level: (activity || "moderate") as ActivityLevel,
+      goal_type: (goal || "maintain") as GoalType,
+    };
+    onComplete(stats);
+  };
+
+  const canAdvanceStep1 = weight && height && age && gender;
+
+  return (
+    <div className="fixed inset-0 bg-white dark:bg-zinc-950 z-50 flex flex-col overflow-y-auto">
+      <div className="max-w-md mx-auto w-full px-6 py-10 flex flex-col min-h-full">
+
+        {/* Progress dots */}
+        <div className="flex justify-center gap-2 mb-8">
+          {[0,1,2].map(i => (
+            <div key={i} className="h-1.5 rounded-full transition-all"
+              style={{ width: step === i ? 24 : 8, background: step >= i ? "#111" : "#e5e7eb" }} />
+          ))}
+        </div>
+
+        {/* Step 0 — Welcome + body stats */}
+        {step === 0 && (
+          <div className="flex-1 flex flex-col">
+            <div className="text-center mb-8">
+              <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl mx-auto mb-4"
+                style={{ background: profile.avatar_bg }}>
+                {profile.photo_url
+                  ? <img src={profile.photo_url} className="w-16 h-16 rounded-2xl object-cover" alt="" />
+                  : profile.avatar}
+              </div>
+              <h1 className="text-2xl font-bold mb-1">Hey, {profile.name.split(" ")[0]}! 👋</h1>
+              <p className="text-sm text-gray-400">Let's set up your personal calorie goal.<br />Takes 30 seconds.</p>
+            </div>
+
+            {/* Unit toggle */}
+            <div className="flex justify-end mb-4">
+              <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
+                <button onClick={() => setUseImperial(false)}
+                  className="px-3 py-1 rounded-md transition-all"
+                  style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#9ca3af" }}>
+                  kg/cm
+                </button>
+                <button onClick={() => setUseImperial(true)}
+                  className="px-3 py-1 rounded-md transition-all"
+                  style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#9ca3af" }}>
+                  lbs/ft
+                </button>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Weight ({useImperial ? "lbs" : "kg"})</label>
+                  <input type="number" value={weight} onChange={e => setWeight(e.target.value)}
+                    placeholder={useImperial ? "154" : "70"}
+                    className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-3 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Height ({useImperial ? "ft" : "cm"})</label>
+                  <input type="number" value={height} onChange={e => setHeight(e.target.value)}
+                    placeholder={useImperial ? "5.9" : "175"}
+                    className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-3 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Age</label>
+                  <input type="number" value={age} onChange={e => setAge(e.target.value)}
+                    placeholder="28"
+                    className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-3 text-sm bg-transparent outline-none focus:border-gray-400" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs text-gray-400 mb-1 block">Gender</label>
+                  <div className="flex gap-1.5">
+                    {(["male","female","other"] as const).map(g => (
+                      <button key={g} onClick={() => setGender(g)}
+                        className="flex-1 py-3 rounded-xl border text-xs capitalize transition-all"
+                        style={{
+                          background: gender === g ? "#111" : "transparent",
+                          borderColor: gender === g ? "#111" : "#e5e7eb",
+                          color: gender === g ? "#fff" : "#9ca3af",
+                          fontWeight: gender === g ? 600 : 400,
+                        }}>{g === "other" ? "?" : g === "male" ? "M" : "F"}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-auto space-y-2">
+              <button onClick={() => setStep(1)} disabled={!canAdvanceStep1}
+                className="w-full py-3.5 rounded-2xl text-sm font-semibold transition-all disabled:opacity-30"
+                style={{ background: "#111", color: "#fff" }}>
+                Continue →
+              </button>
+              <button onClick={() => onComplete({ weight_kg: null, height_cm: null, age: null, gender: "other", activity_level: "moderate", goal_type: "maintain" })}
+                className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">
+                Skip for now
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 1 — Activity level */}
+        {step === 1 && (
+          <div className="flex-1 flex flex-col">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-1">How active are you?</h2>
+              <p className="text-sm text-gray-400">This adjusts your daily calorie target.</p>
+            </div>
+            <div className="space-y-2 mb-6">
+              {ACTIVITIES.map(({ key, label, desc, emoji }) => (
+                <button key={key} onClick={() => setActivity(key)}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all"
+                  style={{
+                    borderColor: activity === key ? "#111" : "#e5e7eb",
+                    background: activity === key ? "#f9fafb" : "transparent",
+                  }}>
+                  <span className="text-2xl">{emoji}</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">{label}</p>
+                    <p className="text-xs text-gray-400">{desc}</p>
+                  </div>
+                  {activity === key && <span className="text-sm">✓</span>}
+                </button>
+              ))}
+            </div>
+            <div className="mt-auto space-y-2">
+              <button onClick={() => setStep(2)} disabled={!activity}
+                className="w-full py-3.5 rounded-2xl text-sm font-semibold disabled:opacity-30"
+                style={{ background: "#111", color: "#fff" }}>
+                Continue →
+              </button>
+              <button onClick={() => setStep(0)} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">← Back</button>
+            </div>
+          </div>
+        )}
+
+        {/* Step 2 — Goal + summary */}
+        {step === 2 && (
+          <div className="flex-1 flex flex-col">
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-1">What's your goal?</h2>
+              <p className="text-sm text-gray-400">We'll adjust your calorie target accordingly.</p>
+            </div>
+            <div className="space-y-2 mb-6">
+              {GOALS.map(({ key, label, desc, emoji }) => (
+                <button key={key} onClick={() => setGoal(key)}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all"
+                  style={{
+                    borderColor: goal === key ? "#111" : "#e5e7eb",
+                    background: goal === key ? "#f9fafb" : "transparent",
+                  }}>
+                  <span className="text-2xl">{emoji}</span>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold">{label}</p>
+                    <p className="text-xs text-gray-400">{desc}</p>
+                  </div>
+                  {goal === key && <span className="text-sm">✓</span>}
+                </button>
+              ))}
+            </div>
+
+            {/* Preview calorie goal */}
+            {previewGoal && goal && (
+              <div className="bg-gray-50 dark:bg-zinc-800 rounded-2xl p-4 mb-6 text-center">
+                <p className="text-xs text-gray-400 mb-1">Your daily calorie goal</p>
+                <p className="text-4xl font-bold" style={{ color: "var(--cal)" }}>{previewGoal}</p>
+                <p className="text-xs text-gray-400 mt-1">kcal / day</p>
+              </div>
+            )}
+
+            <div className="mt-auto space-y-2">
+              <button onClick={handleFinish} disabled={!goal || saving}
+                className="w-full py-3.5 rounded-2xl text-sm font-semibold disabled:opacity-30"
+                style={{ background: "#111", color: "#fff" }}>
+                {saving ? "Saving…" : "Let's go! 🚀"}
+              </button>
+              <button onClick={() => setStep(1)} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">← Back</button>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
 }
 
 // ── CalorieRing ───────────────────────────────────────────────────────────────
@@ -578,6 +818,7 @@ export default function TrackerPage() {
   const [showInsights, setShowInsights] = useState(false);   // #25
   const [insightsText, setInsightsText] = useState("");      // #25
   const [insightsLoading, setInsightsLoading] = useState(false); // #25
+  const [showOnboarding, setShowOnboarding] = useState(false); // #33
   const today = todayISO();
 
   useEffect(() => {
@@ -627,6 +868,8 @@ export default function TrackerPage() {
       if (!p) { router.push("/"); return; }
       setProfile(p);
       setReady(true);
+      // #33 — show onboarding if never completed
+      if (!p.onboarded_at) setShowOnboarding(true);
       getMeals(userId).then(ms => setMeals(ms)).catch(() => {});
       getMeals30Days(userId).then(ms => setHistoryMeals(ms)).catch(() => {});
     }).catch(() => router.push("/"));
@@ -644,7 +887,14 @@ export default function TrackerPage() {
   const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
 
   // #30 — personalized goals from BMR, fallback to constants
-  const calorieGoal = useMemo(() => calcCalorieGoal(profile ?? { weight_kg: null, height_cm: null, age: null, gender: null }) ?? DAILY_GOAL, [profile]);
+  const calorieGoal = useMemo(() => calcCalorieGoal({
+    weight_kg: profile?.weight_kg ?? null,
+    height_cm: profile?.height_cm ?? null,
+    age: profile?.age ?? null,
+    gender: profile?.gender ?? null,
+    activity_level: profile?.activity_level ?? null,
+    goal_type: profile?.goal_type ?? null,
+  }) ?? DAILY_GOAL, [profile]);
   const proteinGoal = useMemo(() => calcProteinGoal(profile?.weight_kg ?? null), [profile]);
 
   // ── Streak counter ────────────────────────────────────────────────────────
@@ -697,6 +947,37 @@ export default function TrackerPage() {
     const updated = await updateMeal(id, updates);
     setMeals(prev => prev.map(m => m.id === id ? updated : m));
   }, []);
+
+  // #33 — Onboarding complete
+  const handleOnboardingComplete = async (stats: {
+    weight_kg: number | null; height_cm: number | null;
+    age: number | null; gender: string;
+    activity_level: ActivityLevel; goal_type: GoalType;
+  }) => {
+    try {
+      await markOnboarded(userId, {
+        weight_kg: stats.weight_kg,
+        height_cm: stats.height_cm,
+        age: stats.age,
+        gender: stats.gender as "male" | "female" | "other" | null,
+        activity_level: stats.activity_level,
+        goal_type: stats.goal_type,
+      });
+      setProfile(p => p ? {
+        ...p,
+        weight_kg: stats.weight_kg,
+        height_cm: stats.height_cm,
+        age: stats.age,
+        gender: stats.gender as "male" | "female" | "other" | null,
+        activity_level: stats.activity_level,
+        goal_type: stats.goal_type,
+        onboarded_at: new Date().toISOString(),
+      } : p);
+    } catch {
+      // non-blocking — still dismiss
+    }
+    setShowOnboarding(false);
+  };
 
   // #25 — Weekly diet insights via Claude API
   const fetchInsights = async () => {
@@ -964,6 +1245,11 @@ export default function TrackerPage() {
 
   return (
     <div className="max-w-md mx-auto px-4 pb-16 pt-4">
+
+      {/* #33 — Onboarding for new users */}
+      {showOnboarding && profile && (
+        <OnboardingFlow profile={profile} onComplete={handleOnboardingComplete} />
+      )}
 
       {/* Pro upgrade success banner */}
       {justUpgraded && (

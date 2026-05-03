@@ -1,6 +1,21 @@
 export const DAILY_GOAL = 2400;
 export const PROTEIN_GOAL = 190;
 
+// Activity multipliers for Mifflin-St Jeor
+const ACTIVITY_MULTIPLIERS: Record<string, number> = {
+  sedentary: 1.2,
+  light:     1.375,
+  moderate:  1.55,
+  active:    1.725,
+};
+
+// Goal adjustments: lose = -300 kcal, maintain = 0, gain = +300 kcal
+const GOAL_ADJUSTMENTS: Record<string, number> = {
+  lose:     -300,
+  maintain:  0,
+  gain:     +300,
+};
+
 // #30 — Calculate personalized calorie goal from body stats using Mifflin-St Jeor BMR
 // Returns null if insufficient data, falls back to DAILY_GOAL in the UI
 export function calcCalorieGoal(stats: {
@@ -8,6 +23,8 @@ export function calcCalorieGoal(stats: {
   height_cm: number | null;
   age: number | null;
   gender: string | null;
+  activity_level?: string | null;
+  goal_type?: string | null;
 }): number | null {
   const { weight_kg, height_cm, age, gender } = stats;
   if (!weight_kg || !height_cm || !age || !gender) return null;
@@ -16,8 +33,9 @@ export function calcCalorieGoal(stats: {
     gender === "male"
       ? 10 * weight_kg + 6.25 * height_cm - 5 * age + 5
       : 10 * weight_kg + 6.25 * height_cm - 5 * age - 161;
-  // Multiply by 1.55 (moderately active) and round to nearest 50
-  return Math.round((bmr * 1.55) / 50) * 50;
+  const multiplier = ACTIVITY_MULTIPLIERS[stats.activity_level ?? "moderate"] ?? 1.55;
+  const adjustment = GOAL_ADJUSTMENTS[stats.goal_type ?? "maintain"] ?? 0;
+  return Math.round((bmr * multiplier + adjustment) / 50) * 50;
 }
 
 // #30 — Protein goal: 1g per lb of bodyweight, or fallback
