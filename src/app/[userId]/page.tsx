@@ -101,6 +101,77 @@ function exportMealsCSV(meals: Meal[], profileName: string) {
   URL.revokeObjectURL(url);
 }
 
+// ── WeeklyCard ────────────────────────────────────────────────────────────────
+function WeeklyCard({
+  meals, calorieGoal, showInsights, insightsLoading, insightsText, isSunday, onToggleInsights,
+}: {
+  meals: Meal[]; calorieGoal: number;
+  showInsights: boolean; insightsLoading: boolean; insightsText: string;
+  isSunday: boolean; onToggleInsights: () => void;
+}) {
+  const last7 = getLast7Days();
+  const weekMeals = meals.filter(m => last7.includes(m.meal_date));
+  const daysLogged = new Set(weekMeals.map(m => m.meal_date)).size;
+
+  const dailyTotals = last7.map(date => {
+    const dayMeals = weekMeals.filter(m => m.meal_date === date);
+    return { date, calories: sumMacros(dayMeals).calories };
+  }).filter(d => d.calories > 0);
+
+  const avgCalories = dailyTotals.length
+    ? Math.round(dailyTotals.reduce((s, d) => s + d.calories, 0) / dailyTotals.length)
+    : 0;
+
+  const bestDay = dailyTotals.length
+    ? dailyTotals.reduce((best, d) =>
+        Math.abs(d.calories - calorieGoal) < Math.abs(best.calories - calorieGoal) ? d : best
+      )
+    : null;
+
+  const diff = avgCalories - calorieGoal;
+  const diffLabel = diff === 0 ? "on target" : diff > 0 ? `+${diff} over goal` : `${Math.abs(diff)} under goal`;
+  const diffColor = Math.abs(diff) < 100 ? "#22C55E" : Math.abs(diff) < 300 ? "#F59E0B" : "#E24B4A";
+
+  if (daysLogged === 0) return null;
+
+  return (
+    <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl mb-4 overflow-hidden">
+      {/* Summary row — always visible */}
+      <button onClick={onToggleInsights} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-left">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
+          style={{ background: isSunday ? "#FEF3C7" : "#F3F4F6" }}>
+          {isSunday ? "📋" : "🧠"}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+            {isSunday ? "Weekly review ready" : "This week so far"}
+          </p>
+          <p className="text-xs text-gray-400 truncate">
+            {daysLogged}/7 days · avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>
+            {avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}
+            {bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}
+          </p>
+        </div>
+        <span className="text-gray-300 text-xs flex-shrink-0">{showInsights ? "▲" : "▼"}</span>
+      </button>
+
+      {/* Expandable AI insights */}
+      {showInsights && (
+        <div className="px-4 pb-4 border-t border-gray-100 dark:border-zinc-800 pt-3">
+          {insightsLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400 py-3 justify-center">
+              <span className="animate-pulse">⏳</span>
+              <span>Analyzing your week…</span>
+            </div>
+          ) : insightsText ? (
+            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{insightsText}</p>
+          ) : null}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Onboarding ────────────────────────────────────────────────────────────────
 function OnboardingFlow({
   profile,
@@ -815,9 +886,10 @@ export default function TrackerPage() {
   const [pendingMealType, setPendingMealType] = useState<MealType>(() => suggestMealType(new Date()));
   const [dayConfirmed, setDayConfirmed] = useState(false);
   const [waterGlasses, setWaterGlasses] = useState(0);       // #22
-  const [showInsights, setShowInsights] = useState(false);   // #25
-  const [insightsText, setInsightsText] = useState("");      // #25
-  const [insightsLoading, setInsightsLoading] = useState(false); // #25
+  const [showInsights, setShowInsights] = useState(false);
+  const [insightsText, setInsightsText] = useState("");
+  const [insightsLoading, setInsightsLoading] = useState(false);
+  const [insightsFetchedFor, setInsightsFetchedFor] = useState<string | null>(null); // date string, prevents re-fetch
   const [showOnboarding, setShowOnboarding] = useState(false); // #33
   const today = todayISO();
 
@@ -882,6 +954,16 @@ export default function TrackerPage() {
       setPendingMealType(suggestMealType(now));
     }
   }, [tab]);
+
+  // Auto-fetch insights on Sundays once history meals are loaded
+  useEffect(() => {
+    if (!ready || historyMeals.length === 0 || insightsFetchedFor === today) return;
+    const isSunday = new Date().getDay() === 0;
+    if (isSunday) {
+      fetchInsights({ silent: true });
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, historyMeals.length]);
 
   const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
   const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
@@ -980,9 +1062,14 @@ export default function TrackerPage() {
   };
 
   // #25 — Weekly diet insights via Claude API
-  const fetchInsights = async () => {
+  const fetchInsights = async (opts?: { silent?: boolean }) => {
+    if (insightsFetchedFor === today) {
+      // Already fetched today — just show
+      if (!opts?.silent) setShowInsights(true);
+      return;
+    }
     setInsightsLoading(true);
-    setShowInsights(true);
+    if (!opts?.silent) setShowInsights(true);
     setInsightsText("");
     try {
       const last7 = getLast7Days();
@@ -995,7 +1082,7 @@ export default function TrackerPage() {
       }).join("\n");
 
       const statsStr = profile
-        ? `User: ${profile.gender ?? "unknown"} gender, ${profile.age ?? "?"} years old, ${profile.weight_kg ?? "?"}kg, ${profile.height_cm ?? "?"}cm. Calorie goal: ${calorieGoal} kcal/day.`
+        ? `User: ${profile.gender ?? "unknown"} gender, ${profile.age ?? "?"} years old, ${profile.weight_kg ?? "?"}kg, ${profile.height_cm ?? "?"}cm. Calorie goal: ${calorieGoal} kcal/day. Goal: ${profile.goal_type ?? "maintain"}.`
         : "No body stats available.";
 
       const res = await fetch("/api/analyze", {
@@ -1008,9 +1095,14 @@ export default function TrackerPage() {
         }),
       }).then(r => r.json());
 
-      setInsightsText(res.insights ?? res.error ?? "Couldn't generate insights right now.");
+      const text = res.insights ?? res.error ?? "Couldn't generate insights right now.";
+      setInsightsText(text);
+      setInsightsFetchedFor(today);
+      // On Sunday auto-fetch, open the card automatically
+      if (opts?.silent) setShowInsights(true);
     } catch {
       setInsightsText("Couldn't generate insights right now. Try again later.");
+      if (opts?.silent) setShowInsights(true);
     } finally {
       setInsightsLoading(false);
     }
@@ -1361,28 +1453,25 @@ export default function TrackerPage() {
         </div>
 
         {/* #25 — Weekly insights button */}
-        <button onClick={fetchInsights}
+        <button onClick={() => fetchInsights()}
           className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-          <span>🧠</span> Weekly diet insights
+          <span>🧠</span> {insightsFetchedFor === today ? "View weekly insights" : "Get weekly insights"}
         </button>
       </div>
 
-      {/* #25 — Insights panel */}
-      {showInsights && (
-        <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-sm font-semibold">🧠 Weekly Insights</p>
-            <button onClick={() => setShowInsights(false)} className="text-gray-400 hover:text-gray-600 text-xs">✕</button>
-          </div>
-          {insightsLoading ? (
-            <div className="flex items-center gap-2 text-sm text-gray-400 py-4 justify-center">
-              <span className="animate-pulse">⏳</span> Analyzing your week…
-            </div>
-          ) : (
-            <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{insightsText}</p>
-          )}
-        </div>
-      )}
+      {/* #25 — Persistent weekly card (Option D) — always visible, expands to AI analysis */}
+      <WeeklyCard
+        meals={historyMeals}
+        calorieGoal={calorieGoal}
+        showInsights={showInsights}
+        insightsLoading={insightsLoading}
+        insightsText={insightsText}
+        isSunday={new Date().getDay() === 0}
+        onToggleInsights={() => {
+          if (!showInsights) fetchInsights();
+          else setShowInsights(false);
+        }}
+      />
 
       {/* Charts */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
