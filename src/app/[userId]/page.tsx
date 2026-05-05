@@ -663,35 +663,91 @@ function fuzzyMatch(name: string, notes: string | null, query: string): boolean 
   return words.every(w => haystack.includes(w));
 }
 
-function FoodSearch({ meals, onRelog }: { meals: Meal[]; onRelog: (m: Meal) => void }) {
+// #32 — max 5 pinned favorites, stored per-user in localStorage
+const MAX_FAVS = 5;
+function getFavKeys(userId: string): string[] {
+  try { return JSON.parse(localStorage.getItem(`favs:${userId}`) ?? "[]"); } catch { return []; }
+}
+function saveFavKeys(userId: string, keys: string[]) {
+  localStorage.setItem(`favs:${userId}`, JSON.stringify(keys));
+}
+
+function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Meal) => void; userId: string }) {
   const [q, setQ] = useState("");
+  const [favKeys, setFavKeys] = useState<string[]>(() => getFavKeys(userId));
+
   const unique = useMemo(() => {
     const seen = new Map<string, Meal>();
     [...meals].sort((a, b) => b.meal_date.localeCompare(a.meal_date))
       .forEach(m => { if (!seen.has(m.name.toLowerCase())) seen.set(m.name.toLowerCase(), m); });
     return Array.from(seen.values());
   }, [meals]);
+
+  const favMeals = useMemo(() =>
+    favKeys.map(k => unique.find(m => m.name.toLowerCase() === k)).filter(Boolean) as Meal[],
+    [favKeys, unique]);
+
+  const toggleFav = (m: Meal) => {
+    const key = m.name.toLowerCase();
+    setFavKeys(prev => {
+      const next = prev.includes(key)
+        ? prev.filter(k => k !== key)
+        : prev.length >= MAX_FAVS ? prev : [...prev, key];
+      saveFavKeys(userId, next);
+      return next;
+    });
+  };
+
   const filtered = q.trim() ? unique.filter(m => fuzzyMatch(m.name, m.notes, q)) : unique.slice(0, 8);
+
+  const MealRow = ({ m, i, total }: { m: Meal; i: number; total: number }) => {
+    const isFav = favKeys.includes(m.name.toLowerCase());
+    return (
+      <div className="flex items-center"
+        style={{ borderBottom: i < total - 1 ? "1px solid #f3f4f6" : "none" }}>
+        <button onClick={() => onRelog(m)}
+          className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 text-left transition-colors">
+          <div>
+            <p className="text-sm font-medium">{m.name}</p>
+            <p className="text-xs text-gray-400">P: {m.protein}g · C: {m.carbs}g · F: {m.fat}g</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium" style={{ color: "var(--cal)" }}>{m.calories} kcal</span>
+            <span className="text-xs text-blue-500 font-medium">+ Add</span>
+          </div>
+        </button>
+        <button onClick={() => toggleFav(m)}
+          className="px-3 py-2 text-base transition-opacity"
+          style={{ opacity: isFav ? 1 : 0.25 }}
+          title={isFav ? "Remove from favorites" : favKeys.length >= MAX_FAVS ? "Max 5 favorites" : "Pin to favorites"}>
+          ⭐
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className="mb-4">
+      {/* Favorites strip */}
+      {favMeals.length > 0 && !q.trim() && (
+        <div className="mb-3">
+          <p className="text-xs font-medium text-gray-400 mb-1.5">⭐ Favorites</p>
+          <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+            {favMeals.map(m => (
+              <button key={m.id} onClick={() => onRelog(m)}
+                className="flex-shrink-0 bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 text-left min-w-[120px] max-w-[150px] hover:bg-gray-100 dark:hover:bg-zinc-700 transition-colors">
+                <p className="text-xs font-semibold truncate">{m.name}</p>
+                <p className="text-xs mt-0.5" style={{ color: "var(--cal)" }}>{m.calories} kcal</p>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search previously logged foods…"
         className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 mb-2" />
       {filtered.length > 0 && (
         <div className="border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden">
-          {filtered.map((m, i) => (
-            <button key={m.id} onClick={() => onRelog(m)}
-              className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 text-left transition-colors"
-              style={{ borderBottom: i < filtered.length - 1 ? "1px solid #f3f4f6" : "none" }}>
-              <div>
-                <p className="text-sm font-medium">{m.name}</p>
-                <p className="text-xs text-gray-400">P: {m.protein}g · C: {m.carbs}g · F: {m.fat}g</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium" style={{ color: "var(--cal)" }}>{m.calories} kcal</span>
-                <span className="text-xs text-blue-500 font-medium">+ Add</span>
-              </div>
-            </button>
-          ))}
+          {filtered.map((m, i) => <MealRow key={m.id} m={m} i={i} total={filtered.length} />)}
         </div>
       )}
     </div>
@@ -706,8 +762,10 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 }) {
   const [editing, setEditing] = useState(false);
   const [editNotes, setEditNotes] = useState(m.notes ?? "");
+  const [editDescription, setEditDescription] = useState(m.name + (m.notes ? ` — ${m.notes}` : "")); // #37
   const [editType, setEditType] = useState<MealType>(m.meal_type);
   const [editTime, setEditTime] = useState<Date>(() => new Date(m.meal_time || m.logged_at));
+  const [editDate, setEditDate] = useState<string>(() => (m.meal_time || m.logged_at).split("T")[0]); // #39
   const [saving, setSaving] = useState(false);
 
   const time = new Date(m.meal_time || m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -715,14 +773,19 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 
   const handleSave = async () => {
     setSaving(true);
+    // #39 — build a merged datetime from the edited date + time
+    const mergedTime = new Date(editTime);
+    const [ey, em, ed] = editDate.split("-").map(Number);
+    mergedTime.setFullYear(ey, em - 1, ed);
+    const mergedIso = mergedTime.toISOString();
     try {
-      const notesChanged = editNotes !== (m.notes ?? "");
-      if (notesChanged) {
+      const descChanged = editDescription.trim() !== (m.name + (m.notes ? ` — ${m.notes}` : ""));
+      if (descChanged) {
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            mode: "text", text: `${m.name}. Additional details: ${editNotes}`,
+            mode: "text", text: editDescription.trim(),
             base64: null, mimeType: null, clarification: null,
           }),
         }).then(r => r.json());
@@ -730,17 +793,18 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           onUpdate(m.id, {
             calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
             serving_size: res.serving_size ?? m.serving_size,
-            notes: editNotes, meal_type: editType, meal_time: editTime.toISOString(),
+            name: res.name ?? m.name,
+            notes: editDescription.trim(), meal_type: editType, meal_time: mergedIso, meal_date: editDate,
           });
         } else {
-          onUpdate(m.id, { notes: editNotes, meal_type: editType, meal_time: editTime.toISOString() });
+          onUpdate(m.id, { notes: editDescription.trim(), meal_type: editType, meal_time: mergedIso, meal_date: editDate });
         }
       } else {
-        onUpdate(m.id, { meal_type: editType, meal_time: editTime.toISOString() });
+        onUpdate(m.id, { meal_type: editType, meal_time: mergedIso, meal_date: editDate });
       }
       setEditing(false);
     } catch {
-      onUpdate(m.id, { notes: editNotes, meal_type: editType, meal_time: editTime.toISOString() });
+      onUpdate(m.id, { notes: editDescription.trim(), meal_type: editType, meal_time: mergedIso, meal_date: editDate });
       setEditing(false);
     } finally { setSaving(false); }
   };
@@ -809,19 +873,27 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
             </div>
           </div>
+          {/* #39 — date correction */}
           <div>
-            <p className="text-xs text-gray-400 mb-1.5">Notes / description</p>
-            <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)}
-              placeholder="Add details to improve identification (e.g. 'grilled, no sauce, large portion')"
+            <p className="text-xs text-gray-400 mb-1.5">Entry date</p>
+            <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
+              max={new Date().toISOString().split("T")[0]}
+              className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400" />
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 mb-1.5">Food description</p>
+            <textarea value={editDescription} onChange={e => setEditDescription(e.target.value)}
+              placeholder="Describe the food to re-analyze (e.g. 'grilled chicken breast 200g, no sauce')"
               rows={2}
               className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
+            <p className="text-xs text-gray-400 mt-1">Edit the description and save to re-analyze with AI ✨</p>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)}
               className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-              {saving ? (editNotes !== (m.notes ?? "") ? "Re-analyzing…" : "Saving…") : "Save changes"}
+              {saving ? (editDescription.trim() !== (m.name + (m.notes ? ` — ${m.notes}` : "")) ? "Re-analyzing…" : "Saving…") : "Save changes"}
             </button>
           </div>
         </div>
@@ -891,7 +963,33 @@ export default function TrackerPage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsFetchedFor, setInsightsFetchedFor] = useState<string | null>(null); // date string, prevents re-fetch
   const [showOnboarding, setShowOnboarding] = useState(false); // #33
+  // #34 — dark mode toggle
+  const [darkMode, setDarkMode] = useState<"light" | "dark" | "system">(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("caloriq-theme") as "light" | "dark" | null;
+      if (saved) return saved;
+    }
+    return "system";
+  });
   const today = todayISO();
+
+  // #34 — apply dark mode
+  useEffect(() => {
+    const root = document.documentElement;
+    if (darkMode === "dark") {
+      root.classList.add("dark");
+    } else if (darkMode === "light") {
+      root.classList.remove("dark");
+    } else {
+      // system — let CSS media query handle it
+      root.classList.remove("dark");
+    }
+    if (darkMode !== "system") {
+      localStorage.setItem("caloriq-theme", darkMode);
+    } else {
+      localStorage.removeItem("caloriq-theme");
+    }
+  }, [darkMode]);
 
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
@@ -1017,7 +1115,7 @@ export default function TrackerPage() {
     }
     setPreview(null); setPendingFile(null); setTextInput("");
     setClar(null); setPendingB64(null); setPendingMime(null);
-    setTab(mealDate === today ? "today" : "history");
+    // #40 — stay on log screen after adding a meal
   }, [userId, today, pendingMealType, pendingMealTime]);
 
   const handleDeleteMeal = useCallback(async (id: string) => {
@@ -1625,7 +1723,7 @@ export default function TrackerPage() {
 
           <div className="mt-6">
             <p className="text-xs font-medium text-gray-400 mb-2">Recent foods</p>
-            <FoodSearch meals={historyMeals.length > 0 ? historyMeals : meals} onRelog={handleRelog} />
+            <FoodSearch meals={historyMeals.length > 0 ? historyMeals : meals} onRelog={handleRelog} userId={userId} />
           </div>
         </div>
       )}
@@ -1779,7 +1877,7 @@ export default function TrackerPage() {
                 <div className="flex gap-2">
                   <input
                     value={promoCode}
-                    onChange={e => setPromoCode(e.target.value)}
+                    onChange={e => setPromoCode(e.target.value.toUpperCase())}
                     onKeyDown={e => e.key === "Enter" && handlePromoCode()}
                     placeholder="Enter promo code"
                     className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-blue-400 uppercase"
@@ -1809,6 +1907,12 @@ export default function TrackerPage() {
           </button>
           <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">🔒 Privacy</a>
           <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">👤 My account</a>
+          {/* #34 — dark mode toggle */}
+          <button onClick={() => setDarkMode(m => m === "dark" ? "light" : m === "light" ? "system" : "dark")}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            title={darkMode === "dark" ? "Dark mode" : darkMode === "light" ? "Light mode" : "System theme"}>
+            {darkMode === "dark" ? "🌙 Dark" : darkMode === "light" ? "☀️ Light" : "🖥️ Auto"}
+          </button>
         </div>
         {profile?.is_pro && (
           <button onClick={handleManageSubscription}
