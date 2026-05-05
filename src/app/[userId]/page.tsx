@@ -963,33 +963,7 @@ export default function TrackerPage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsFetchedFor, setInsightsFetchedFor] = useState<string | null>(null); // date string, prevents re-fetch
   const [showOnboarding, setShowOnboarding] = useState(false); // #33
-  // #34 — dark mode toggle
-  const [darkMode, setDarkMode] = useState<"light" | "dark" | "system">(() => {
-    if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("caloriq-theme") as "light" | "dark" | null;
-      if (saved) return saved;
-    }
-    return "system";
-  });
   const today = todayISO();
-
-  // #34 — apply dark mode
-  useEffect(() => {
-    const root = document.documentElement;
-    if (darkMode === "dark") {
-      root.classList.add("dark");
-    } else if (darkMode === "light") {
-      root.classList.remove("dark");
-    } else {
-      // system — let CSS media query handle it
-      root.classList.remove("dark");
-    }
-    if (darkMode !== "system") {
-      localStorage.setItem("caloriq-theme", darkMode);
-    } else {
-      localStorage.removeItem("caloriq-theme");
-    }
-  }, [darkMode]);
 
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
@@ -1907,12 +1881,6 @@ export default function TrackerPage() {
           </button>
           <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">🔒 Privacy</a>
           <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">👤 My account</a>
-          {/* #34 — dark mode toggle */}
-          <button onClick={() => setDarkMode(m => m === "dark" ? "light" : m === "light" ? "system" : "dark")}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-            title={darkMode === "dark" ? "Dark mode" : darkMode === "light" ? "Light mode" : "System theme"}>
-            {darkMode === "dark" ? "🌙 Dark" : darkMode === "light" ? "☀️ Light" : "🖥️ Auto"}
-          </button>
         </div>
         {profile?.is_pro && (
           <button onClick={handleManageSubscription}
