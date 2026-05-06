@@ -1074,7 +1074,12 @@ export default function TrackerPage() {
     imgUrl?: string, mealType?: MealType, mealTime?: Date,
   ) => {
     const mt = mealTime ?? pendingMealTime;
-    const mealDate = mt.toISOString().split("T")[0]; // #26 use date from picker
+    // Use local date components to avoid UTC timezone shift
+    const mealDate = [
+      mt.getFullYear(),
+      String(mt.getMonth() + 1).padStart(2, "0"),
+      String(mt.getDate()).padStart(2, "0"),
+    ].join("-");
     const saved = await addMeal({
       ...result, profile_id: userId,
       image_url: imgUrl ?? null,
@@ -1083,13 +1088,13 @@ export default function TrackerPage() {
       meal_time: mt.toISOString(),
     });
     setMeals(prev => [saved, ...prev]);
-    // Also refresh history if back-dated
     if (mealDate !== today) {
       setHistoryMeals(prev => [saved, ...prev]);
     }
     setPreview(null); setPendingFile(null); setTextInput("");
     setClar(null); setPendingB64(null); setPendingMime(null);
-    // #40 — stay on log screen after adding a meal
+    // After logging, show today tab (or history if back-dated)
+    setTab(mealDate === today ? "today" : "history");
   }, [userId, today, pendingMealType, pendingMealTime]);
 
   const handleDeleteMeal = useCallback(async (id: string) => {
@@ -1561,14 +1566,27 @@ export default function TrackerPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1 mb-4">
-        {([["add", "+ Log"], ["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
-          <button key={t} onClick={() => setTab(t)}
-            className="flex-1 py-2 text-xs rounded-xl transition-all"
-            style={{ background: tab === t ? "#f3f4f6" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#9ca3af" }}>
-            {l}
-          </button>
-        ))}
+      <div className="flex gap-2 mb-4 items-center">
+        {/* Prominent Log button */}
+        <button onClick={() => setTab("add")}
+          className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all shadow-sm"
+          style={{
+            background: tab === "add" ? "#111" : "linear-gradient(135deg,#7F77DD,#5b54c4)",
+            color: "#fff",
+            boxShadow: tab === "add" ? "none" : "0 2px 8px rgba(127,119,221,0.45)",
+            minWidth: "90px",
+          }}>
+          <span style={{ fontSize: "1rem", lineHeight: 1 }}>＋</span> Log meal
+        </button>
+        <div className="flex flex-1 gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1">
+          {([["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
+            <button key={t} onClick={() => setTab(t)}
+              className="flex-1 py-2 text-xs rounded-xl transition-all"
+              style={{ background: tab === t ? "#f3f4f6" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#9ca3af" }}>
+              {l}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Today */}
