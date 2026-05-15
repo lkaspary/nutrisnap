@@ -18,8 +18,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <script dangerouslySetInnerHTML={{__html: `
           if ('serviceWorker' in navigator) {
-            window.addEventListener('load', function() {
-              navigator.serviceWorker.register('/sw.js');
+            navigator.serviceWorker.getRegistrations().then(function(regs) {
+              regs.forEach(function(reg) { reg.unregister(); });
+            });
+            caches.keys().then(function(keys) {
+              keys.forEach(function(key) { caches.delete(key); });
             });
           }
         `}} />
