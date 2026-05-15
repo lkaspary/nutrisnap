@@ -1144,11 +1144,23 @@ export default function TrackerPage() {
   const [showShareCard, setShowShareCard] = useState(false);
   const today = todayISO();
 
+  // #34 — Apply theme before first paint to prevent flash
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("caloriq-theme");
+    if (savedTheme === "dark") {
+      document.documentElement.classList.add("dark");
+      setIsDark(true);
+    } else {
+      // Default to light mode — remove dark class regardless
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("caloriq-theme", "light");
+      setIsDark(false);
+    }
+  }, []);
+
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
-    // #34 — Sync dark mode state from DOM (set by layout script)
-    setIsDark(document.documentElement.classList.contains("dark"));
     // #22 load water for today
     const w = localStorage.getItem(`water:${userId}:${today}`);
     if (w) setWaterGlasses(parseInt(w) || 0);
