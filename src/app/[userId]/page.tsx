@@ -11,7 +11,7 @@ import {
   DAILY_GOAL, PROTEIN_GOAL, calcCalorieGoal, calcProteinGoal,
 } from "@/lib/utils";
 
-// ?????? helpers ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── helpers ───────────────────────────────────────────────────────────────────
 function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((res, rej) => {
     const img = new Image();
@@ -59,10 +59,10 @@ function suggestMealType(d: Date): MealType {
 }
 
 const MEAL_TYPES: { key: MealType; label: string; emoji: string }[] = [
-  { key: "breakfast", label: "Breakfast", emoji: "????" },
-  { key: "lunch",     label: "Lunch",     emoji: "??????" },
-  { key: "snack",     label: "Snack",     emoji: "????" },
-  { key: "dinner",    label: "Dinner",    emoji: "????" },
+  { key: "breakfast", label: "Breakfast", emoji: "🌅" },
+  { key: "lunch",     label: "Lunch",     emoji: "☀️" },
+  { key: "snack",     label: "Snack",     emoji: "🍎" },
+  { key: "dinner",    label: "Dinner",    emoji: "🌙" },
 ];
 
 const MEAL_TYPE_COLORS: Record<MealType, string> = {
@@ -72,7 +72,7 @@ const MEAL_TYPE_COLORS: Record<MealType, string> = {
   dinner:    "#3B82F6",
 };
 
-// ?????? Export CSV ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── Export CSV ────────────────────────────────────────────────────────────────
 function exportMealsCSV(meals: Meal[], profileName: string) {
   const headers = [
     "Date", "Time", "Meal Type", "Name",
@@ -101,7 +101,7 @@ function exportMealsCSV(meals: Meal[], profileName: string) {
   URL.revokeObjectURL(url);
 }
 
-// ?????? WeeklyCard ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── WeeklyCard ────────────────────────────────────────────────────────────────
 function WeeklyCard({
   meals, calorieGoal, showInsights, insightsLoading, insightsText, isSunday, onToggleInsights,
 }: {
@@ -113,7 +113,7 @@ function WeeklyCard({
   const weekMeals = meals.filter(m => last7.includes(m.meal_date));
   const daysLogged = new Set(weekMeals.map(m => m.meal_date)).size;
 
-  // #42 ??? Only count days with ???2 meals as "full logged days" for averages
+  // #42 — Only count days with ≥2 meals as "full logged days" for averages
   const dailyTotals = last7.map(date => {
     const dayMeals = weekMeals.filter(m => m.meal_date === date);
     return { date, calories: sumMacros(dayMeals).calories, mealCount: dayMeals.length };
@@ -137,21 +137,21 @@ function WeeklyCard({
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl mb-4 overflow-hidden">
-      {/* Summary row ??? always visible */}
+      {/* Summary row — always visible */}
       <button onClick={onToggleInsights} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-left">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
           style={{ background: isSunday ? "#FEF3C7" : "#F3F4F6" }}>
-          {isSunday ? "????" : "????"}
+          {isSunday ? "📋" : "🧠"}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
             {isSunday ? "Weekly review ready" : "This week so far"}
           </p>
           <p className="text-xs text-gray-400 truncate">
-            {daysLogged}/7 days ?? {dailyTotals.length > 0 ? <>avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>{avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}{bestDay && ` ?? best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}</> : "log more meals for avg"}
+            {daysLogged}/7 days · {dailyTotals.length > 0 ? <>avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>{avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}{bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}</> : "log more meals for avg"}
           </p>
         </div>
-        <span className="text-gray-300 text-xs flex-shrink-0">{showInsights ? "???" : "???"}</span>
+        <span className="text-gray-300 text-xs flex-shrink-0">{showInsights ? "▲" : "▼"}</span>
       </button>
 
       {/* Expandable AI insights */}
@@ -159,8 +159,8 @@ function WeeklyCard({
         <div className="px-4 pb-4 border-t border-gray-100 dark:border-zinc-800 pt-3">
           {insightsLoading ? (
             <div className="flex items-center gap-2 text-sm text-gray-400 py-3 justify-center">
-              <span className="animate-pulse">???</span>
-              <span>Analyzing your week???</span>
+              <span className="animate-pulse">⏳</span>
+              <span>Analyzing your week…</span>
             </div>
           ) : insightsText ? (
             <p className="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{insightsText}</p>
@@ -171,7 +171,7 @@ function WeeklyCard({
   );
 }
 
-// ?????? Onboarding ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── Onboarding ────────────────────────────────────────────────────────────────
 function OnboardingFlow({
   profile,
   onComplete,
@@ -203,16 +203,16 @@ function OnboardingFlow({
   });
 
   const ACTIVITIES: { key: ActivityLevel; label: string; desc: string; emoji: string }[] = [
-    { key: "sedentary", label: "Sedentary",  desc: "Desk job, little exercise",       emoji: "????" },
-    { key: "light",     label: "Light",      desc: "Light exercise 1???3??/week",        emoji: "????" },
-    { key: "moderate",  label: "Moderate",   desc: "Exercise 3???5??/week",              emoji: "????" },
-    { key: "active",    label: "Active",     desc: "Hard exercise 6???7??/week",         emoji: "????" },
+    { key: "sedentary", label: "Sedentary",  desc: "Desk job, little exercise",       emoji: "🪑" },
+    { key: "light",     label: "Light",      desc: "Light exercise 1–3×/week",        emoji: "🚶" },
+    { key: "moderate",  label: "Moderate",   desc: "Exercise 3–5×/week",              emoji: "🏃" },
+    { key: "active",    label: "Active",     desc: "Hard exercise 6–7×/week",         emoji: "💪" },
   ];
 
   const GOALS: { key: GoalType; label: string; desc: string; emoji: string; adj: string }[] = [
-    { key: "lose",     label: "Lose weight",    desc: "???300 kcal/day deficit",   emoji: "????", adj: "text-blue-500" },
-    { key: "maintain", label: "Stay the same",  desc: "Maintain current weight", emoji: "??????",  adj: "text-green-500" },
-    { key: "gain",     label: "Build muscle",   desc: "+300 kcal/day surplus",   emoji: "????", adj: "text-orange-500" },
+    { key: "lose",     label: "Lose weight",    desc: "−300 kcal/day deficit",   emoji: "📉", adj: "text-blue-500" },
+    { key: "maintain", label: "Stay the same",  desc: "Maintain current weight", emoji: "⚖️",  adj: "text-green-500" },
+    { key: "gain",     label: "Build muscle",   desc: "+300 kcal/day surplus",   emoji: "📈", adj: "text-orange-500" },
   ];
 
   const handleFinish = async () => {
@@ -237,12 +237,12 @@ function OnboardingFlow({
         {/* Progress dots */}
         <div className="flex justify-center gap-2 mb-8">
           {[0,1,2].map(i => (
-            <div key={i} className="h-1.5 rounded-full transition-all"
-              style={{ width: step === i ? 24 : 8, background: step >= i ? "#111" : "#e5e7eb" }} />
+            <div key={i} className={`h-1.5 rounded-full transition-all ${step >= i ? "bg-gray-900 dark:bg-white" : "bg-gray-200 dark:bg-zinc-700"}`}
+              style={{ width: step === i ? 24 : 8 }} />
           ))}
         </div>
 
-        {/* Step 0 ??? Welcome + body stats */}
+        {/* Step 0 — Welcome + body stats */}
         {step === 0 && (
           <div className="flex-1 flex flex-col">
             <div className="text-center mb-8">
@@ -252,7 +252,7 @@ function OnboardingFlow({
                   ? <img src={profile.photo_url} className="w-16 h-16 rounded-2xl object-cover" alt="" />
                   : profile.avatar}
               </div>
-              <h1 className="text-2xl font-bold mb-1">Hey, {profile.name.split(" ")[0]}! ????</h1>
+              <h1 className="text-2xl font-bold mb-1">Hey, {profile.name.split(" ")[0]}! 👋</h1>
               <p className="text-sm text-gray-400">Let's set up your personal calorie goal.<br />Takes 30 seconds.</p>
             </div>
 
@@ -260,13 +260,11 @@ function OnboardingFlow({
             <div className="flex justify-end mb-4">
               <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                 <button onClick={() => setUseImperial(false)}
-                  className="px-3 py-1 rounded-md transition-all"
-                  style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#9ca3af" }}>
+                  className={`px-3 py-1 rounded-md transition-all ${!useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
                   kg/cm
                 </button>
                 <button onClick={() => setUseImperial(true)}
-                  className="px-3 py-1 rounded-md transition-all"
-                  style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#9ca3af" }}>
+                  className={`px-3 py-1 rounded-md transition-all ${useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
                   lbs/ft
                 </button>
               </div>
@@ -299,10 +297,10 @@ function OnboardingFlow({
                   <div className="flex gap-1.5">
                     {(["male","female","other"] as const).map(g => (
                       <button key={g} onClick={() => setGender(g)}
-                        className="flex-1 py-3 rounded-xl border text-xs capitalize transition-all"
+                        className={`flex-1 py-3 rounded-xl border text-xs capitalize transition-all ${gender !== g ? "border-gray-200 dark:border-zinc-600" : ""}`}
                         style={{
                           background: gender === g ? "#111" : "transparent",
-                          borderColor: gender === g ? "#111" : "#e5e7eb",
+                          borderColor: gender === g ? "#111" : undefined,
                           color: gender === g ? "#fff" : "#9ca3af",
                           fontWeight: gender === g ? 600 : 400,
                         }}>{g === "other" ? "?" : g === "male" ? "M" : "F"}</button>
@@ -316,7 +314,7 @@ function OnboardingFlow({
               <button onClick={() => setStep(1)} disabled={!canAdvanceStep1}
                 className="w-full py-3.5 rounded-2xl text-sm font-semibold transition-all disabled:opacity-30"
                 style={{ background: "#111", color: "#fff" }}>
-                Continue ???
+                Continue →
               </button>
               <button onClick={() => onComplete({ weight_kg: null, height_cm: null, age: null, gender: "other", activity_level: "moderate", goal_type: "maintain" })}
                 className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">
@@ -326,7 +324,7 @@ function OnboardingFlow({
           </div>
         )}
 
-        {/* Step 1 ??? Activity level */}
+        {/* Step 1 — Activity level */}
         {step === 1 && (
           <div className="flex-1 flex flex-col">
             <div className="mb-8">
@@ -336,9 +334,9 @@ function OnboardingFlow({
             <div className="space-y-2 mb-6">
               {ACTIVITIES.map(({ key, label, desc, emoji }) => (
                 <button key={key} onClick={() => setActivity(key)}
-                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all"
+                  className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all ${activity !== key ? "border-gray-200 dark:border-zinc-600" : ""}`}
                   style={{
-                    borderColor: activity === key ? "#111" : "#e5e7eb",
+                    borderColor: activity === key ? "#111" : undefined,
                     background: activity === key ? "#f9fafb" : "transparent",
                   }}>
                   <span className="text-2xl">{emoji}</span>
@@ -346,7 +344,7 @@ function OnboardingFlow({
                     <p className="text-sm font-semibold">{label}</p>
                     <p className="text-xs text-gray-400">{desc}</p>
                   </div>
-                  {activity === key && <span className="text-sm">???</span>}
+                  {activity === key && <span className="text-sm">✓</span>}
                 </button>
               ))}
             </div>
@@ -354,14 +352,14 @@ function OnboardingFlow({
               <button onClick={() => setStep(2)} disabled={!activity}
                 className="w-full py-3.5 rounded-2xl text-sm font-semibold disabled:opacity-30"
                 style={{ background: "#111", color: "#fff" }}>
-                Continue ???
+                Continue →
               </button>
-              <button onClick={() => setStep(0)} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">??? Back</button>
+              <button onClick={() => setStep(0)} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">← Back</button>
             </div>
           </div>
         )}
 
-        {/* Step 2 ??? Goal + summary */}
+        {/* Step 2 — Goal + summary */}
         {step === 2 && (
           <div className="flex-1 flex flex-col">
             <div className="mb-8">
@@ -371,9 +369,9 @@ function OnboardingFlow({
             <div className="space-y-2 mb-6">
               {GOALS.map(({ key, label, desc, emoji }) => (
                 <button key={key} onClick={() => setGoal(key)}
-                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all"
+                  className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all ${goal !== key ? "border-gray-200 dark:border-zinc-600" : ""}`}
                   style={{
-                    borderColor: goal === key ? "#111" : "#e5e7eb",
+                    borderColor: goal === key ? "#111" : undefined,
                     background: goal === key ? "#f9fafb" : "transparent",
                   }}>
                   <span className="text-2xl">{emoji}</span>
@@ -381,7 +379,7 @@ function OnboardingFlow({
                     <p className="text-sm font-semibold">{label}</p>
                     <p className="text-xs text-gray-400">{desc}</p>
                   </div>
-                  {goal === key && <span className="text-sm">???</span>}
+                  {goal === key && <span className="text-sm">✓</span>}
                 </button>
               ))}
             </div>
@@ -399,9 +397,9 @@ function OnboardingFlow({
               <button onClick={handleFinish} disabled={!goal || saving}
                 className="w-full py-3.5 rounded-2xl text-sm font-semibold disabled:opacity-30"
                 style={{ background: "#111", color: "#fff" }}>
-                {saving ? "Saving???" : "Let's go! ????"}
+                {saving ? "Saving…" : "Let's go! 🚀"}
               </button>
-              <button onClick={() => setStep(1)} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">??? Back</button>
+              <button onClick={() => setStep(1)} className="w-full py-2 text-xs text-gray-400 hover:text-gray-600">← Back</button>
             </div>
           </div>
         )}
@@ -411,13 +409,13 @@ function OnboardingFlow({
   );
 }
 
-// ?????? CalorieRing ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── CalorieRing ───────────────────────────────────────────────────────────────
 function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
   const pct = Math.min(eaten / goal, 1), r = 48, cx = 56, cy = 56, circ = 2 * Math.PI * r;
   const color = pct > 1 ? "#E24B4A" : pct > 0.85 ? "#F59E0B" : "#22C55E";
   return (
     <svg width={112} height={112}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f3f4f6" strokeWidth={10} />
+      <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={10} className="stroke-gray-200 dark:stroke-zinc-700" />
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={10}
         strokeDasharray={`${pct * circ} ${circ}`} strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cy})`} />
@@ -428,7 +426,7 @@ function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
   );
 }
 
-// ?????? MealTimeEditor ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── MealTimeEditor ────────────────────────────────────────────────────────────
 function MealTimeEditor({
   mealTime, mealType, onChange, onTypeChange,
 }: {
@@ -456,19 +454,13 @@ function MealTimeEditor({
   };
 
   return (
-    <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
+    <div className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
       {/* Date selector */}
       <p className="text-xs font-medium text-gray-400 mb-2">Log date</p>
       <div className="flex gap-1 overflow-x-auto pb-1 mb-3 scrollbar-hide">
         {dateOptions.map(({ iso, label }) => (
           <button key={iso} onClick={() => handleDateChange(iso)}
-            className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border transition-all whitespace-nowrap"
-            style={{
-              background: selectedDate === iso ? "#111" : "transparent",
-              borderColor: selectedDate === iso ? "#111" : "#e5e7eb",
-              color: selectedDate === iso ? "#fff" : "#9ca3af",
-              fontWeight: selectedDate === iso ? 600 : 400,
-            }}>{label}</button>
+            className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full border transition-all whitespace-nowrap ${selectedDate === iso ? "bg-gray-900 dark:bg-white border-gray-900 dark:border-white text-white dark:text-gray-900 font-semibold" : "bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400"}`}>{label}</button>
         ))}
       </div>
       <p className="text-xs font-medium text-gray-400 mb-2">Meal type</p>
@@ -477,11 +469,11 @@ function MealTimeEditor({
           const active = mealType === key;
           return (
             <button key={key} onClick={() => onTypeChange(key)}
-              className="flex flex-col items-center py-2 rounded-xl border text-xs transition-all"
+              className={`flex flex-col items-center py-2 rounded-xl border text-xs transition-all ${!active ? "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-600 text-gray-500 dark:text-gray-400" : ""}`}
               style={{
-                background: active ? MEAL_TYPE_COLORS[key] + "18" : "transparent",
-                borderColor: active ? MEAL_TYPE_COLORS[key] : "#e5e7eb",
-                color: active ? MEAL_TYPE_COLORS[key] : "#9ca3af",
+                background: active ? MEAL_TYPE_COLORS[key] + "18" : undefined,
+                borderColor: active ? MEAL_TYPE_COLORS[key] : undefined,
+                color: active ? MEAL_TYPE_COLORS[key] : undefined,
                 fontWeight: active ? 600 : 400,
               }}>
               <span className="text-base mb-0.5">{emoji}</span>{label}
@@ -492,7 +484,7 @@ function MealTimeEditor({
       <p className="text-xs font-medium text-gray-400 mb-2">Meal time</p>
       <div className="flex items-center justify-between bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
         <button onClick={() => onChange(shiftMinutes(mealTime, -30))}
-          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">???</button>
+          className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">−</button>
         <span className="text-sm font-semibold tabular-nums">{fmtTime(mealTime)}</span>
         <button onClick={() => onChange(shiftMinutes(mealTime, 30))}
           className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
@@ -501,7 +493,7 @@ function MealTimeEditor({
   );
 }
 
-// ?????? BarChart ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── BarChart ──────────────────────────────────────────────────────────────────
 type ChartType = "calories" | "protein";
 function BarChart({ meals, type, onBarClick, calorieGoal: calGoal, proteinGoal: protGoal }: { meals: Meal[]; type: ChartType; onBarClick: () => void; calorieGoal: number; proteinGoal: number }) {
   const [showAvg, setShowAvg] = useState(false);
@@ -520,7 +512,7 @@ function BarChart({ meals, type, onBarClick, calorieGoal: calGoal, proteinGoal: 
     <div>
       <div className="flex justify-between items-center mb-2">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-          {type === "calories" ? "Calories" : "Protein"} ??? last 7 days
+          {type === "calories" ? "Calories" : "Protein"} — last 7 days
         </p>
         <button onClick={() => setShowAvg(p => !p)}
           className="text-xs px-2.5 py-1 rounded-full border border-gray-200 dark:border-zinc-600 text-gray-400 hover:text-gray-600">
@@ -548,8 +540,7 @@ function BarChart({ meals, type, onBarClick, calorieGoal: calGoal, proteinGoal: 
       </div>
       <div className="flex gap-1 mt-1">
         {data.map((d, i) => (
-          <div key={d.date} className="flex-1 text-center"
-            style={{ fontSize: 9, color: i === 6 ? "#374151" : "#9ca3af", fontWeight: i === 6 ? 600 : 400 }}>
+          <div key={d.date} className={`flex-1 text-center ${i === 6 ? "font-semibold text-gray-700 dark:text-gray-200" : "text-gray-400"}`} style={{ fontSize: 9 }}>
             {new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "narrow" })}
           </div>
         ))}
@@ -558,7 +549,7 @@ function BarChart({ meals, type, onBarClick, calorieGoal: calGoal, proteinGoal: 
   );
 }
 
-// ?????? AnalyticsTable ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── AnalyticsTable ────────────────────────────────────────────────────────────
 function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void }) {
   const [period, setPeriod] = useState<"day" | "week" | "month">("day");
   const rows = useMemo(() => {
@@ -602,13 +593,12 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
         <div className="flex gap-1">
           {(["day", "week", "month"] as const).map(p => (
             <button key={p} onClick={() => setPeriod(p)}
-              className="text-xs px-3 py-1 rounded-full transition-colors capitalize"
-              style={{ background: period === p ? "#f3f4f6" : "transparent", fontWeight: period === p ? 600 : 400, color: period === p ? "#111" : "#9ca3af" }}>
+              className={`text-xs px-3 py-1 rounded-full transition-colors capitalize ${period === p ? "bg-gray-100 dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
               {p}
             </button>
           ))}
         </div>
-        <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">???</button>
+        <button onClick={onClose} className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1">✕</button>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -652,7 +642,7 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
   );
 }
 
-// ?????? FoodSearch ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── FoodSearch ────────────────────────────────────────────────────────────────
 function fuzzyMatch(name: string, notes: string | null, query: string): boolean {
   const haystack = (name + " " + (notes ?? "")).toLowerCase();
   const q = query.toLowerCase().trim();
@@ -662,7 +652,7 @@ function fuzzyMatch(name: string, notes: string | null, query: string): boolean 
   return words.every(w => haystack.includes(w));
 }
 
-// #32 ??? max 5 pinned favorites, stored per-user in localStorage
+// #32 — max 5 pinned favorites, stored per-user in localStorage
 const MAX_FAVS = 5;
 function getFavKeys(userId: string): string[] {
   try { return JSON.parse(localStorage.getItem(`favs:${userId}`) ?? "[]"); } catch { return []; }
@@ -702,13 +692,12 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
   const MealRow = ({ m, i, total }: { m: Meal; i: number; total: number }) => {
     const isFav = favKeys.includes(m.name.toLowerCase());
     return (
-      <div className="flex items-center"
-        style={{ borderBottom: i < total - 1 ? "1px solid #f3f4f6" : "none" }}>
+      <div className={`flex items-center ${i < total - 1 ? "border-b border-gray-100 dark:border-zinc-800" : ""}`}>
         <button onClick={() => onRelog(m)}
           className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 text-left transition-colors">
           <div>
             <p className="text-sm font-medium">{m.name}</p>
-            <p className="text-xs text-gray-400">P: {m.protein}g ?? C: {m.carbs}g ?? F: {m.fat}g</p>
+            <p className="text-xs text-gray-400">P: {m.protein}g · C: {m.carbs}g · F: {m.fat}g</p>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm font-medium" style={{ color: "var(--cal)" }}>{m.calories} kcal</span>
@@ -719,7 +708,7 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
           className="px-3 py-2 text-base transition-opacity"
           style={{ opacity: isFav ? 1 : 0.25 }}
           title={isFav ? "Remove from favorites" : favKeys.length >= MAX_FAVS ? "Max 5 favorites" : "Pin to favorites"}>
-          ???
+          ⭐
         </button>
       </div>
     );
@@ -730,7 +719,7 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
       {/* Favorites strip */}
       {favMeals.length > 0 && !q.trim() && (
         <div className="mb-3">
-          <p className="text-xs font-medium text-gray-400 mb-1.5">??? Favorites</p>
+          <p className="text-xs font-medium text-gray-400 mb-1.5">⭐ Favorites</p>
           <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {favMeals.map(m => (
               <button key={m.id} onClick={() => onRelog(m)}
@@ -742,10 +731,10 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
           </div>
         </div>
       )}
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search previously logged foods???"
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search previously logged foods…"
         className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 mb-2" />
       {filtered.length > 0 && (
-        <div className="border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden">
+        <div className="border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden bg-white dark:bg-zinc-900">
           {filtered.map((m, i) => <MealRow key={m.id} m={m} i={i} total={filtered.length} />)}
         </div>
       )}
@@ -753,7 +742,7 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
   );
 }
 
-// ?????? ShareDaySummaryCard (#24) ???????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── ShareDaySummaryCard (#24) ─────────────────────────────────────────────────
 function ShareDaySummaryCard({
   name, date, calories, calorieGoal, protein, carbs, fat, streak, onClose,
 }: {
@@ -770,7 +759,7 @@ function ShareDaySummaryCard({
   const pct = Math.min(Math.round((calories / calorieGoal) * 100), 999);
   const onTarget = Math.abs(calories - calorieGoal) < 150;
   const over = calories > calorieGoal + 150;
-  const statusEmoji = onTarget ? "????" : over ? "????" : "????";
+  const statusEmoji = onTarget ? "🎯" : over ? "📈" : "📉";
   const statusText = onTarget ? "Right on target!" : over ? `${calories - calorieGoal} kcal over goal` : `${calorieGoal - calories} kcal under goal`;
 
   useEffect(() => {
@@ -863,7 +852,7 @@ function ShareDaySummaryCard({
       ctx.fill();
       ctx.fillStyle = "#f97316";
       ctx.font = "bold 14px system-ui, sans-serif";
-      ctx.fillText(`???? ${streak} day${streak > 1 ? "s" : ""}`, W - 117, 59);
+      ctx.fillText(`🔥 ${streak} day${streak > 1 ? "s" : ""}`, W - 117, 59);
     }
 
     setShareUrl(canvas.toDataURL("image/png"));
@@ -884,7 +873,7 @@ function ShareDaySummaryCard({
         const blob = await (await fetch(shareUrl)).blob();
         const file = new File([blob], `caloriq-${date}.png`, { type: "image/png" });
         if (navigator.canShare({ files: [file] })) {
-          await navigator.share({ files: [file], title: "My daily nutrition ??? Caloriq" });
+          await navigator.share({ files: [file], title: "My daily nutrition — Caloriq" });
           return;
         }
       } catch { /* fall through */ }
@@ -905,7 +894,7 @@ function ShareDaySummaryCard({
       <div className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-zinc-800">
           <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Share today's summary</p>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">??</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
         </div>
         <div className="p-4">
           <canvas ref={canvasRef} className="w-full rounded-xl" style={{ display: shareUrl ? "block" : "none" }} />
@@ -913,11 +902,11 @@ function ShareDaySummaryCard({
           <div className="flex gap-2 mt-3">
             <button onClick={handleShare}
               className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">
-              {copied ? "??? Copied!" : "???? Share"}
+              {copied ? "✅ Copied!" : "📤 Share"}
             </button>
             <button onClick={handleDownload}
               className="flex-1 bg-gray-100 dark:bg-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-600 text-gray-700 dark:text-gray-200 rounded-xl py-2.5 text-sm font-medium transition-colors">
-              ?????? Save
+              ⬇️ Save
             </button>
           </div>
         </div>
@@ -940,7 +929,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-// ?????? MealCard ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── MealCard ──────────────────────────────────────────────────────────────────
 function MealCard({ meal: m, onDelete, onUpdate }: {
   meal: Meal;
   onDelete: (id: string) => void;
@@ -948,7 +937,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 }) {
   const [editing, setEditing] = useState(false);
   const [editNotes, setEditNotes] = useState(m.notes ?? "");
-  const [editDescription, setEditDescription] = useState(m.name + (m.notes ? ` ??? ${m.notes}` : "")); // #37
+  const [editDescription, setEditDescription] = useState(m.name + (m.notes ? ` — ${m.notes}` : "")); // #37
   const [editType, setEditType] = useState<MealType>(m.meal_type);
   const [editTime, setEditTime] = useState<Date>(() => new Date(m.meal_time || m.logged_at));
   const [editDate, setEditDate] = useState<string>(() => (m.meal_time || m.logged_at).split("T")[0]); // #39
@@ -959,13 +948,13 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 
   const handleSave = async () => {
     setSaving(true);
-    // #39 ??? build a merged datetime from the edited date + time
+    // #39 — build a merged datetime from the edited date + time
     const mergedTime = new Date(editTime);
     const [ey, em, ed] = editDate.split("-").map(Number);
     mergedTime.setFullYear(ey, em - 1, ed);
     const mergedIso = mergedTime.toISOString();
     try {
-      const descChanged = editDescription.trim() !== (m.name + (m.notes ? ` ??? ${m.notes}` : ""));
+      const descChanged = editDescription.trim() !== (m.name + (m.notes ? ` — ${m.notes}` : ""));
       if (descChanged) {
         const res = await fetch("/api/analyze", {
           method: "POST",
@@ -1002,7 +991,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           <img src={m.image_url} alt={m.name} className="w-12 h-12 rounded-xl object-cover flex-shrink-0" />
         ) : (
           <div className="w-12 h-12 rounded-xl flex items-center justify-center text-xl flex-shrink-0 bg-gray-50 dark:bg-zinc-800">
-            {typeInfo?.emoji ?? "???????"}
+            {typeInfo?.emoji ?? "🍽️"}
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -1014,14 +1003,14 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
                 {typeInfo.label}
               </span>
             )}
-            <p className="text-xs text-gray-400">{time} ?? P: {m.protein}g</p>
+            <p className="text-xs text-gray-400">{time} · P: {m.protein}g</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <p className="text-sm font-semibold" style={{ color: "var(--cal)" }}>{m.calories} kcal</p>
           <div className="flex gap-2">
-            <button onClick={() => setEditing(e => !e)} className="text-xs text-gray-300 hover:text-blue-400 transition-colors">??????</button>
-            <button onClick={() => onDelete(m.id)} className="text-xs text-gray-300 hover:text-red-400 transition-colors">???</button>
+            <button onClick={() => setEditing(e => !e)} className="text-xs text-gray-300 hover:text-blue-400 transition-colors">✏️</button>
+            <button onClick={() => onDelete(m.id)} className="text-xs text-gray-300 hover:text-red-400 transition-colors">✕</button>
           </div>
         </div>
       </div>
@@ -1034,10 +1023,10 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
                 const active = editType === key;
                 return (
                   <button key={key} onClick={() => setEditType(key)}
-                    className="flex flex-col items-center py-1.5 rounded-xl border text-xs transition-all"
+                    className={`flex flex-col items-center py-1.5 rounded-xl border text-xs transition-all ${!active ? "border-gray-200 dark:border-zinc-600" : ""}`}
                     style={{
                       background: active ? MEAL_TYPE_COLORS[key] + "18" : "transparent",
-                      borderColor: active ? MEAL_TYPE_COLORS[key] : "#e5e7eb",
+                      borderColor: active ? MEAL_TYPE_COLORS[key] : undefined,
                       color: active ? MEAL_TYPE_COLORS[key] : "#9ca3af",
                       fontWeight: active ? 600 : 400,
                     }}>
@@ -1049,9 +1038,9 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           </div>
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Meal time</p>
-            <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
+            <div className="flex items-center justify-between bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
               <button onClick={() => setEditTime(d => new Date(d.getTime() - 30 * 60000))}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">???</button>
+                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">−</button>
               <span className="text-sm font-semibold tabular-nums">
                 {editTime.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
               </span>
@@ -1059,7 +1048,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
             </div>
           </div>
-          {/* #39 ??? date correction */}
+          {/* #39 — date correction */}
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Entry date</p>
             <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
@@ -1072,14 +1061,14 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
               placeholder="Describe the food to re-analyze (e.g. 'grilled chicken breast 200g, no sauce')"
               rows={2}
               className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 resize-none" />
-            <p className="text-xs text-gray-400 mt-1">Edit the description and save to re-analyze with AI ???</p>
+            <p className="text-xs text-gray-400 mt-1">Edit the description and save to re-analyze with AI ✨</p>
           </div>
           <div className="flex gap-2">
             <button onClick={() => setEditing(false)}
               className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-              {saving ? (editDescription.trim() !== (m.name + (m.notes ? ` ??? ${m.notes}` : "")) ? "Re-analyzing???" : "Saving???") : "Save changes"}
+              {saving ? (editDescription.trim() !== (m.name + (m.notes ? ` — ${m.notes}` : "")) ? "Re-analyzing…" : "Saving…") : "Save changes"}
             </button>
           </div>
         </div>
@@ -1088,30 +1077,30 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
   );
 }
 
-// ?????? DayLoggedButton ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── DayLoggedButton ───────────────────────────────────────────────────────────
 function DayLoggedButton({ confirmed, onToggle }: { confirmed: boolean; onToggle: () => void }) {
   return (
     <button onClick={onToggle}
-      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all mt-4"
+      className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all mt-4 ${!confirmed ? "border-gray-200 dark:border-zinc-700" : ""}`}
       style={{
-        borderColor: confirmed ? "#22C55E" : "#e5e7eb",
+        borderColor: confirmed ? "#22C55E" : undefined,
         background: confirmed ? "#22C55E14" : "transparent",
         color: confirmed ? "#22C55E" : "#9ca3af",
       }}>
-      <span className="text-lg">{confirmed ? "???" : "??????"}</span>
+      <span className="text-lg">{confirmed ? "✅" : "☑️"}</span>
       <span className="text-sm font-semibold">
-        {confirmed ? "Day logged ??? all meals recorded!" : "Confirm I've logged everything today"}
+        {confirmed ? "Day logged — all meals recorded!" : "Confirm I've logged everything today"}
       </span>
     </button>
   );
 }
 
-// ?????? Page ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+// ── Page ──────────────────────────────────────────────────────────────────────
 export default function TrackerPage() {
   const router = useRouter();
   const { userId } = useParams<{ userId: string }>();
-  const searchParams = useSearchParams();                          // ??? NEW
-  const justUpgraded = searchParams.get("upgraded") === "true";   // ??? NEW
+  const searchParams = useSearchParams();                          // ← NEW
+  const justUpgraded = searchParams.get("upgraded") === "true";   // ← NEW
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
@@ -1123,7 +1112,7 @@ export default function TrackerPage() {
   const [preview, setPreview] = useState<string | null>(null);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [loadingMsg, setLoadingMsg] = useState("Analyzing???");
+  const [loadingMsg, setLoadingMsg] = useState("Analyzing…");
   const [error, setError] = useState("");
   const [clarification, setClar] = useState<{ question: string; options: string[] } | null>(null);
   const [pendingB64, setPendingB64] = useState<string | null>(null);
@@ -1149,17 +1138,29 @@ export default function TrackerPage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsFetchedFor, setInsightsFetchedFor] = useState<string | null>(null); // date string, prevents re-fetch
   const [showOnboarding, setShowOnboarding] = useState(false); // #33
-  // #34 ??? Dark mode toggle
+  // #34 — Dark mode toggle
   const [isDark, setIsDark] = useState(false);
-  // #24 ??? Share meal card
+  // #24 — Share meal card
   const [showShareCard, setShowShareCard] = useState(false);
   const today = todayISO();
+
+  // #34 — Apply theme before first paint to prevent flash
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("caloriq-theme");
+    if (savedTheme === "dark") {
+      document.documentElement.classList.add("dark");
+      setIsDark(true);
+    } else {
+      // Default to light mode — remove dark class regardless
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("caloriq-theme", "light");
+      setIsDark(false);
+    }
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
-    // #34 ??? Sync dark mode state from DOM (set by layout script)
-    setIsDark(document.documentElement.classList.contains("dark"));
     // #22 load water for today
     const w = localStorage.getItem(`water:${userId}:${today}`);
     if (w) setWaterGlasses(parseInt(w) || 0);
@@ -1204,7 +1205,7 @@ export default function TrackerPage() {
       if (!p) { router.push("/"); return; }
       setProfile(p);
       setReady(true);
-      // #33 ??? show onboarding if never completed
+      // #33 — show onboarding if never completed
       if (!p.onboarded_at) setShowOnboarding(true);
       getMeals(userId).then(ms => setMeals(ms)).catch(() => {});
       getMeals30Days(userId).then(ms => setHistoryMeals(ms)).catch(() => {});
@@ -1219,12 +1220,12 @@ export default function TrackerPage() {
     }
   }, [tab]);
 
-  // #42 ??? Insights only on explicit button press. No auto-fetch.
+  // #42 — Insights only on explicit button press. No auto-fetch.
 
   const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
   const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
 
-  // #30 ??? personalized goals from BMR, fallback to constants
+  // #30 — personalized goals from BMR, fallback to constants
   const calorieGoal = useMemo(() => calcCalorieGoal({
     weight_kg: profile?.weight_kg ?? null,
     height_cm: profile?.height_cm ?? null,
@@ -1235,7 +1236,7 @@ export default function TrackerPage() {
   }) ?? DAILY_GOAL, [profile]);
   const proteinGoal = useMemo(() => calcProteinGoal(profile?.weight_kg ?? null), [profile]);
 
-  // ?????? Streak counter ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+  // ── Streak counter ────────────────────────────────────────────────────────
   const streak = useMemo(() => {
     const loggedDates = new Set([
       ...historyMeals.map(m => m.meal_date),
@@ -1291,7 +1292,7 @@ export default function TrackerPage() {
     setMeals(prev => prev.map(m => m.id === id ? updated : m));
   }, []);
 
-  // #33 ??? Onboarding complete
+  // #33 — Onboarding complete
   const handleOnboardingComplete = async (stats: {
     weight_kg: number | null; height_cm: number | null;
     age: number | null; gender: string;
@@ -1317,15 +1318,15 @@ export default function TrackerPage() {
         onboarded_at: new Date().toISOString(),
       } : p);
     } catch {
-      // non-blocking ??? still dismiss
+      // non-blocking — still dismiss
     }
     setShowOnboarding(false);
   };
 
-  // #25 ??? Weekly diet insights via Claude API
+  // #25 — Weekly diet insights via Claude API
   const fetchInsights = async (opts?: { silent?: boolean }) => {
     if (insightsFetchedFor === today) {
-      // Already fetched today ??? just show
+      // Already fetched today — just show
       if (!opts?.silent) setShowInsights(true);
       return;
     }
@@ -1335,11 +1336,11 @@ export default function TrackerPage() {
     try {
       const last7 = getLast7Days();
       const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
-      // #42 ??? Only count days with ???2 meals as fully logged for accurate averages
+      // #42 — Only count days with ≥2 meals as fully logged for accurate averages
       const mealSummary = last7.map(date => {
         const dayMeals = weekMeals.filter(m => m.meal_date === date);
         if (dayMeals.length === 0) return `${date}: no meals logged`;
-        if (dayMeals.length === 1) return `${date}: partially logged (${dayMeals[0].name}) ??? exclude from averages`;
+        if (dayMeals.length === 1) return `${date}: partially logged (${dayMeals[0].name}) — exclude from averages`;
         const t = sumMacros(dayMeals);
         return `${date}: ${t.calories} kcal, P:${t.protein}g C:${t.carbs}g F:${t.fat}g (${dayMeals.map(m => m.name).join(", ")})`;
       }).join("\n");
@@ -1353,7 +1354,7 @@ export default function TrackerPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: "insights",
-          text: `${statsStr}\n\nLast 7 days of meals:\n${mealSummary}\n\nGive a short, friendly, personal weekly nutrition summary (3???5 sentences max). Highlight patterns, best day, any concerns, and one actionable tip. Be encouraging and specific.`,
+          text: `${statsStr}\n\nLast 7 days of meals:\n${mealSummary}\n\nGive a short, friendly, personal weekly nutrition summary (3–5 sentences max). Highlight patterns, best day, any concerns, and one actionable tip. Be encouraging and specific.`,
           base64: null, mimeType: null, clarification: null, profileId: userId,
         }),
       }).then(r => r.json());
@@ -1377,7 +1378,7 @@ export default function TrackerPage() {
     router.push("/");
   };
 
-  // #34 ??? Dark mode toggle
+  // #34 — Dark mode toggle
   const toggleDark = () => {
     const next = !isDark;
     setIsDark(next);
@@ -1409,7 +1410,7 @@ export default function TrackerPage() {
     setClar(null); setError(""); setTextInput("");
   };
 
-  // ?????? Stripe upgrade ????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+  // ── Stripe upgrade ────────────────────────────────────────────────────────
   const [upgrading, setUpgrading] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -1477,7 +1478,7 @@ export default function TrackerPage() {
       setFeedbackSending(false);
     }
   };
-  const AVATARS = ["????","????","????","????","????","???????????","???????????","???????????","????","????","???????????","?????????????","???????????","???????????","???????????"];
+  const AVATARS = ["🧑","👩","👨","🧔","👱","👩‍🦰","👩‍🦱","🧑‍🦲","👴","👵","🧑‍💻","👩‍⚕️","🧑‍🍳","👩‍🎤","🧑‍🎨"];
   const AVATAR_BGS = ["#EEEDFE","#E1F5EE","#E6F1FB","#FAECE7","#EAF3DE","#FAEEDA","#FBEAF0","#F1EFE8"];
 
   const handleAvatarChange = async (avatar: string, bg: string) => {
@@ -1505,7 +1506,7 @@ export default function TrackerPage() {
         body: JSON.stringify({ code: promoCode.trim(), profileId: userId }),
       }).then(r => r.json());
       if (res.success) {
-        setPromoSuccess(`???? ${res.lifetime ? "Lifetime" : res.duration} Pro access activated!`);
+        setPromoSuccess(`🎉 ${res.lifetime ? "Lifetime" : res.duration} Pro access activated!`);
         setTimeout(() => {
           setShowUpgrade(false);
           setProfile(p => p ? { ...p, is_pro: true } : p);
@@ -1540,13 +1541,13 @@ export default function TrackerPage() {
     }
   };
 
-  // ?????? AI analysis ?????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
+  // ── AI analysis ───────────────────────────────────────────────────────────
   const runFinal = async (
     text: string, mode: string, clar: string | null,
     b64: string | null, mime: string | null,
   ) => {
     setLoading(true);
-    setLoadingMsg(mode === "label" ? "Reading label???" : mode === "text" ? "Searching & estimating???" : "Analyzing photo???");
+    setLoadingMsg(mode === "label" ? "Reading label…" : mode === "text" ? "Searching & estimating…" : "Analyzing photo…");
     try {
       const result = await fetch("/api/analyze", {
         method: "POST", headers: { "Content-Type": "application/json" },
@@ -1574,7 +1575,7 @@ export default function TrackerPage() {
         b64 = r.base64; mime = r.mimeType;
         setPendingB64(b64); setPendingMime(mime);
       }
-      setLoadingMsg("Reviewing???");
+      setLoadingMsg("Reviewing…");
       const check = await fetch("/api/followup", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode: inputMode, text: textInput, base64: b64, mimeType: mime }),
@@ -1589,9 +1590,9 @@ export default function TrackerPage() {
   };
 
   const modeConfig = {
-    meal:   { icon: "???????", label: "Meal photo" },
-    label:  { icon: "???????", label: "Nutrition label" },
-    text:   { icon: "??????", label: "Describe it" },
+    meal:   { icon: "🍽️", label: "Meal photo" },
+    label:  { icon: "🏷️", label: "Nutrition label" },
+    text:   { icon: "✏️", label: "Describe it" },
   } as const;
 
   if (!ready) return (
@@ -1614,15 +1615,31 @@ export default function TrackerPage() {
   return (
     <div className="max-w-md mx-auto px-4 pb-16 pt-4">
 
-      {/* #33 ??? Onboarding for new users */}
+      {/* #33 — Onboarding for new users */}
       {showOnboarding && profile && (
         <OnboardingFlow profile={profile} onComplete={handleOnboardingComplete} />
       )}
 
+      {/* TEMP DEBUG — remove after fix */}
+      <div id="theme-debug" className="text-xs text-center py-1 mb-2 rounded-lg bg-yellow-100 text-yellow-800">
+        Loading theme info...
+      </div>
+      <script dangerouslySetInnerHTML={{__html: `
+        (function() {
+          var el = document.getElementById('theme-debug');
+          if (el) {
+            var theme = localStorage.getItem('caloriq-theme');
+            var hasDark = document.documentElement.classList.contains('dark');
+            el.textContent = 'localStorage: ' + theme + ' | dark class: ' + hasDark;
+            el.style.background = hasDark ? '#fee2e2' : '#dcfce7';
+          }
+        })();
+      `}} />
+
       {/* Pro upgrade success banner */}
       {justUpgraded && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4 mb-4 flex items-center gap-3">
-          <span className="text-2xl">????</span>
+          <span className="text-2xl">🎉</span>
           <div>
             <p className="text-sm font-semibold text-green-700 dark:text-green-400">You're now Pro!</p>
             <p className="text-xs text-green-600 dark:text-green-500">Unlimited AI analyses unlocked.</p>
@@ -1661,7 +1678,7 @@ export default function TrackerPage() {
       {profile?.is_pro && (
         <div className="flex items-center gap-1.5 mb-3">
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 border border-blue-200 dark:border-blue-800">
-            ??? Pro
+            ⚡ Pro
           </span>
           <span className="text-xs text-gray-400">Unlimited AI analyses</span>
         </div>
@@ -1678,7 +1695,7 @@ export default function TrackerPage() {
                 ["Carbs",   totals.carbs,   "g", "var(--carb)"],
                 ["Fat",     totals.fat,     "g", "var(--fat)"],
               ] as [string, number, string, string][]).map(([l, v, u, c]) => (
-                <div key={l} className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-2 text-center">
+                <div key={l} className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl p-2 text-center">
                   <p className="text-xs text-gray-400">{l}</p>
                   <p className="text-sm font-medium" style={{ color: c }}>
                     {v}<span className="text-xs font-normal">{u}</span>
@@ -1693,7 +1710,7 @@ export default function TrackerPage() {
             <p className="text-xs text-gray-400 mt-1">{totals.protein}g / {proteinGoal}g protein</p>
             <div className="mt-2 flex items-center justify-between">
               <div className="flex items-center gap-1">
-                <span className="text-sm">{streak > 1 ? "????" : "???"}</span>
+                <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
                 <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
                   {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
                 </span>
@@ -1701,17 +1718,17 @@ export default function TrackerPage() {
               {totals.calories > 0 && (
                 <button onClick={() => setShowShareCard(true)}
                   className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
-                  ???? Share
+                  📤 Share
                 </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* #22 ??? Water tracker */}
-        <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 rounded-xl px-3 py-2 mb-2">
+        {/* #22 — Water tracker */}
+        <div className="flex items-center justify-between bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 mb-2">
           <div className="flex items-center gap-2">
-            <span className="text-base">????</span>
+            <span className="text-base">💧</span>
             <div>
               <p className="text-xs font-medium text-gray-600 dark:text-gray-300">Water</p>
               <p className="text-xs text-gray-400">{waterGlasses} / 8 glasses</p>
@@ -1722,10 +1739,10 @@ export default function TrackerPage() {
               const next = Math.max(0, waterGlasses - 1);
               setWaterGlasses(next);
               localStorage.setItem(`water:${userId}:${today}`, String(next));
-            }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">???</button>
+            }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">−</button>
             <div className="flex gap-0.5">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="w-2 h-3 rounded-sm" style={{ background: i < waterGlasses ? "#3B82F6" : "#e5e7eb" }} />
+                <div key={i} className={`w-2 h-3 rounded-sm ${i < waterGlasses ? "bg-blue-500" : "bg-gray-200 dark:bg-zinc-600"}`} />
               ))}
             </div>
             <button onClick={() => {
@@ -1736,14 +1753,14 @@ export default function TrackerPage() {
           </div>
         </div>
 
-        {/* #25 ??? Weekly insights button */}
+        {/* #25 — Weekly insights button */}
         <button onClick={() => fetchInsights()}
           className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-          <span>????</span> {insightsFetchedFor === today ? "View weekly insights" : "Get weekly insights"}
+          <span>🧠</span> {insightsFetchedFor === today ? "View weekly insights" : "Get weekly insights"}
         </button>
       </div>
 
-      {/* #25 ??? Persistent weekly card (Option D) ??? always visible, expands to AI analysis */}
+      {/* #25 — Persistent weekly card (Option D) — always visible, expands to AI analysis */}
       <WeeklyCard
         meals={historyMeals}
         calorieGoal={calorieGoal}
@@ -1762,8 +1779,7 @@ export default function TrackerPage() {
         <div className="flex gap-2 mb-3">
           {(["calories", "protein"] as ChartType[]).map(t => (
             <button key={t} onClick={() => setChartType(t)}
-              className="text-xs px-3 py-1 rounded-full capitalize transition-colors"
-              style={{ background: chartType === t ? "#f3f4f6" : "transparent", fontWeight: chartType === t ? 600 : 400, color: chartType === t ? "#111" : "#9ca3af" }}>
+              className={`text-xs px-3 py-1 rounded-full capitalize transition-colors ${chartType === t ? "bg-gray-100 dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
               {t}
             </button>
           ))}
@@ -1778,18 +1794,17 @@ export default function TrackerPage() {
         <button onClick={() => setTab("add")}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all shadow-sm"
           style={{
-            background: tab === "add" ? "#111" : "linear-gradient(135deg,#7F77DD,#5b54c4)",
+            background: "linear-gradient(135deg,#7F77DD,#5b54c4)",
             color: "#fff",
-            boxShadow: tab === "add" ? "none" : "0 2px 8px rgba(127,119,221,0.45)",
+            boxShadow: tab === "add" ? "0 2px 8px rgba(127,119,221,0.45)" : "0 2px 8px rgba(127,119,221,0.45)",
             minWidth: "90px",
           }}>
-          <span style={{ fontSize: "1rem", lineHeight: 1 }}>???</span> Log meal
+          <span style={{ fontSize: "1rem", lineHeight: 1 }}>＋</span> Log meal
         </button>
         <div className="flex flex-1 gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1">
           {([["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
             <button key={t} onClick={() => setTab(t)}
-              className="flex-1 py-2 text-xs rounded-xl transition-all"
-              style={{ background: tab === t ? "#f3f4f6" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#9ca3af" }}>
+              className={`flex-1 py-2 text-xs rounded-xl transition-all ${tab === t ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
               {l}
             </button>
           ))}
@@ -1802,7 +1817,7 @@ export default function TrackerPage() {
           {todayMeals.length === 0
             ? <div className="text-center py-10 text-gray-400 text-sm">
                 No meals today.{" "}
-                <button onClick={() => setTab("add")} className="text-blue-400">Add one ???</button>
+                <button onClick={() => setTab("add")} className="text-blue-400">Add one →</button>
               </div>
             : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} />)}
           {todayMeals.length > 0 && (
@@ -1818,13 +1833,7 @@ export default function TrackerPage() {
           <div className="flex gap-2 mb-4">
             {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
               <button key={key} onClick={() => { setInputMode(key); setPreview(null); setPendingFile(null); setClar(null); setError(""); }}
-                className="flex-1 py-2 px-1 text-xs rounded-xl border transition-colors"
-                style={{
-                  background: inputMode === key ? "#f3f4f6" : "transparent",
-                  fontWeight: inputMode === key ? 600 : 400,
-                  borderColor: inputMode === key ? "#d1d5db" : "#e5e7eb",
-                  color: inputMode === key ? "#111" : "#9ca3af",
-                }}>
+                className={`flex-1 py-2 px-1 text-xs rounded-xl border transition-colors ${inputMode === key ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-400 dark:border-indigo-500 font-semibold text-indigo-600 dark:text-indigo-300" : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400"}`}>
                 <div className="text-base mb-0.5">{cfg.icon}</div>{cfg.label}
               </button>
             ))}
@@ -1848,7 +1857,7 @@ export default function TrackerPage() {
                 ))}
                 <button onClick={() => runFinal(textInput, inputMode, "Not sure, best estimate", pendingB64, pendingMime)}
                   className="w-full text-left text-xs px-4 py-2 text-gray-400 hover:text-gray-600">
-                  Not sure ??? just estimate
+                  Not sure — just estimate
                 </button>
               </div>
             </div>
@@ -1869,12 +1878,12 @@ export default function TrackerPage() {
                     <div className="flex gap-2">
                       <button onClick={() => cameraRef.current?.click()}
                         className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-                        <span className="text-xl">????</span>
+                        <span className="text-xl">📷</span>
                         <span className="text-xs text-gray-500">Take photo</span>
                       </button>
                       <button onClick={() => fileRef.current?.click()}
                         className="flex-1 flex flex-col items-center gap-1 py-3 rounded-xl border border-gray-200 dark:border-zinc-600 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-                        <span className="text-xl">???????</span>
+                        <span className="text-xl">🖼️</span>
                         <span className="text-xs text-gray-500">Choose from gallery</span>
                       </button>
                     </div>
@@ -1887,7 +1896,7 @@ export default function TrackerPage() {
                   <div className="relative">
                     <img src={preview} alt="preview" className="w-full rounded-2xl max-h-52 object-cover" />
                     <button onClick={() => { setPreview(null); setPendingFile(null); }}
-                      className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm">???</button>
+                      className="absolute top-2 right-2 bg-black/50 text-white rounded-full w-7 h-7 flex items-center justify-center text-sm">✕</button>
                   </div>
                 )
               )}
@@ -1910,14 +1919,15 @@ export default function TrackerPage() {
                     className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
                 )}
                 <button onClick={startAnalysis} disabled={loading || !canSubmit}
-                  className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                  className="flex-[2] rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg,#7F77DD,#5b54c4)", color: "#fff" }}>
                   {loading ? loadingMsg : inputMode === "label" ? "Read label" : inputMode === "meal" ? "Analyze photo" : "Search & estimate"}
                 </button>
               </div>
             </div>
           )}
 
-          {loading && <p className="text-center text-sm text-gray-400 mt-3">??? {loadingMsg}</p>}
+          {loading && <p className="text-center text-sm text-gray-400 mt-3">⏳ {loadingMsg}</p>}
           {error   && <p className="text-red-500 text-sm mt-2">{error}</p>}
 
           <div className="mt-6">
@@ -1936,10 +1946,10 @@ export default function TrackerPage() {
           <div>
             <button onClick={async () => { const all = await getAllMeals(userId); exportMealsCSV(all, profile!.name); }}
               className="w-full flex items-center justify-center gap-2 mb-3 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-              <span>????</span> Export my food log (CSV)
+              <span>📥</span> Export my food log (CSV)
             </button>
             <p className="text-xs text-gray-400 text-center mb-4">
-              Your data belongs to you ??? export it anytime.
+              Your data belongs to you — export it anytime.
             </p>
             {Object.keys(grouped).length === 0
               ? <div className="text-center py-10 text-gray-400 text-sm">No history yet.</div>
@@ -1950,8 +1960,8 @@ export default function TrackerPage() {
                       <div className="flex justify-between items-center mb-2">
                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{fmtShort(date)}</p>
                         <p className="text-xs text-gray-400">
-                          <span className="font-medium" style={{ color: "var(--cal)" }}>{dt.calories}</span> kcal ??{" "}
-                          P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> ?? C: {dt.carbs}g ?? F: {dt.fat}g
+                          <span className="font-medium" style={{ color: "var(--cal)" }}>{dt.calories}</span> kcal ·{" "}
+                          P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> · C: {dt.carbs}g · F: {dt.fat}g
                         </p>
                       </div>
                       {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} />)}
@@ -1968,11 +1978,11 @@ export default function TrackerPage() {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <p className="font-medium text-sm">Send us a message</p>
-              <button onClick={() => setShowFeedback(false)} className="text-gray-400 hover:text-gray-600">???</button>
+              <button onClick={() => setShowFeedback(false)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             {feedbackSent ? (
               <div className="text-center py-6">
-                <div className="text-4xl mb-2">????</div>
+                <div className="text-4xl mb-2">🙏</div>
                 <p className="text-sm font-medium">Thanks for your feedback!</p>
                 <p className="text-xs text-gray-400 mt-1">We read every message.</p>
               </div>
@@ -1981,7 +1991,7 @@ export default function TrackerPage() {
                 <textarea
                   value={feedbackMsg}
                   onChange={e => setFeedbackMsg(e.target.value)}
-                  placeholder="Share your thoughts, ideas, or report a problem???"
+                  placeholder="Share your thoughts, ideas, or report a problem…"
                   rows={5}
                   className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none focus:border-gray-400 resize-none mb-3"
                 />
@@ -1992,7 +2002,7 @@ export default function TrackerPage() {
                   </button>
                   <button onClick={handleSendFeedback} disabled={feedbackSending || !feedbackMsg.trim()}
                     className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
-                    {feedbackSending ? "Sending???" : "Send message"}
+                    {feedbackSending ? "Sending…" : "Send message"}
                   </button>
                 </div>
               </>
@@ -2007,7 +2017,7 @@ export default function TrackerPage() {
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <p className="font-medium text-sm">Choose your avatar</p>
-              <button onClick={() => setShowAvatarPicker(false)} className="text-gray-400 hover:text-gray-600">???</button>
+              <button onClick={() => setShowAvatarPicker(false)} className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             <div className="flex flex-wrap gap-2 mb-4">
               {AVATARS.map((a, i) => (
@@ -2027,11 +2037,11 @@ export default function TrackerPage() {
       <div className="mt-6 mb-2 text-center">
         <button onClick={() => setShowFeedback(true)}
           className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-          <span>????</span> Send us a message
+          <span>💬</span> Send us a message
         </button>
       </div>
 
-      {/* #24 ??? Share day summary card */}
+      {/* #24 — Share day summary card */}
       {showShareCard && (
         <ShareDaySummaryCard
           name={profile?.name ?? ""}
@@ -2051,7 +2061,7 @@ export default function TrackerPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full shadow-xl">
             <div className="text-center mb-4">
-              <div className="text-5xl mb-3">????</div>
+              <div className="text-5xl mb-3">🚀</div>
               <h2 className="text-xl font-bold mb-1">You've hit your daily limit</h2>
               <p className="text-sm text-gray-400">
                 You've used all {usageCount} free AI analyses today. Upgrade to Pro for unlimited analyses!
@@ -2083,7 +2093,7 @@ export default function TrackerPage() {
                 </button>
                 <button onClick={() => setShowUpgrade(false)}
                   className="w-full py-2 text-sm text-gray-400 hover:text-gray-600">
-                  Maybe later ??? resets tomorrow
+                  Maybe later — resets tomorrow
                 </button>
               </div>
             ) : (
@@ -2098,7 +2108,7 @@ export default function TrackerPage() {
                   />
                   <button onClick={handlePromoCode} disabled={promoLoading || !promoCode.trim()}
                     className="bg-blue-500 text-white rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40">
-                    {promoLoading ? "???" : "Apply"}
+                    {promoLoading ? "…" : "Apply"}
                   </button>
                 </div>
                 {promoError && <p className="text-red-500 text-xs text-center">{promoError}</p>}
@@ -2117,19 +2127,19 @@ export default function TrackerPage() {
         <div className="flex items-center justify-center gap-4 flex-wrap">
           <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            ?????? My stats
+            ⚖️ My stats
           </button>
-          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">???? Privacy</a>
-          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">???? My account</a>
-          {/* #34 ??? Dark mode toggle */}
+          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">🔒 Privacy</a>
+          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">👤 My account</a>
+          {/* #34 — Dark mode toggle */}
           <button onClick={toggleDark} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            {isDark ? "?????? Light mode" : "???? Dark mode"}
+            {isDark ? "☀️ Light mode" : "🌙 Dark mode"}
           </button>
         </div>
         {profile?.is_pro && (
           <button onClick={handleManageSubscription}
             className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-            ???? Manage or cancel subscription
+            💳 Manage or cancel subscription
           </button>
         )}
       </div>
@@ -2154,17 +2164,15 @@ export default function TrackerPage() {
                   {/* Unit toggle */}
                   <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                     <button onClick={() => setUseImperial(false)}
-                      className="px-2 py-1 rounded-md transition-all"
-                      style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#9ca3af" }}>
+                      className={`px-2 py-1 rounded-md transition-all ${!useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
                       kg/cm
                     </button>
                     <button onClick={() => setUseImperial(true)}
-                      className="px-2 py-1 rounded-md transition-all"
-                      style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#9ca3af" }}>
+                      className={`px-2 py-1 rounded-md transition-all ${useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
                       lbs/ft
                     </button>
                   </div>
-                  <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">???</button>
+                  <button onClick={() => setShowBodyStats(false)} className="text-gray-400 hover:text-gray-600">✕</button>
                 </div>
               </div>
               <p className="text-xs text-gray-400 mb-4">Help us calculate your ideal calorie and protein goals.</p>
@@ -2233,7 +2241,7 @@ export default function TrackerPage() {
                   className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
                 <button onClick={handleSaveBodyStats} disabled={savingStats}
                   className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
-                  {savingStats ? "Saving???" : "Save stats"}
+                  {savingStats ? "Saving…" : "Save stats"}
                 </button>
               </div>
             </div>
