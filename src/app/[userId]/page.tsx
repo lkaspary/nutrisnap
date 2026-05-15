@@ -237,8 +237,8 @@ function OnboardingFlow({
         {/* Progress dots */}
         <div className="flex justify-center gap-2 mb-8">
           {[0,1,2].map(i => (
-            <div key={i} className={`h-1.5 rounded-full transition-all ${step >= i ? "bg-gray-900 dark:bg-white" : "bg-gray-200 dark:bg-zinc-700"}`}
-              style={{ width: step === i ? 24 : 8 }} />
+            <div key={i} className="h-1.5 rounded-full transition-all"
+              style={{ width: step === i ? 24 : 8, background: step >= i ? "#111" : "#e5e7eb" }} />
           ))}
         </div>
 
@@ -260,11 +260,13 @@ function OnboardingFlow({
             <div className="flex justify-end mb-4">
               <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                 <button onClick={() => setUseImperial(false)}
-                  className={`px-3 py-1 rounded-md transition-all ${!useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
+                  className="px-3 py-1 rounded-md transition-all"
+                  style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#6b7280" }}>
                   kg/cm
                 </button>
                 <button onClick={() => setUseImperial(true)}
-                  className={`px-3 py-1 rounded-md transition-all ${useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
+                  className="px-3 py-1 rounded-md transition-all"
+                  style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#6b7280" }}>
                   lbs/ft
                 </button>
               </div>
@@ -297,10 +299,10 @@ function OnboardingFlow({
                   <div className="flex gap-1.5">
                     {(["male","female","other"] as const).map(g => (
                       <button key={g} onClick={() => setGender(g)}
-                        className={`flex-1 py-3 rounded-xl border text-xs capitalize transition-all ${gender !== g ? "border-gray-200 dark:border-zinc-600" : ""}`}
+                        className="flex-1 py-3 rounded-xl border text-xs capitalize transition-all"
                         style={{
                           background: gender === g ? "#111" : "transparent",
-                          borderColor: gender === g ? "#111" : undefined,
+                          borderColor: gender === g ? "#111" : "#e5e7eb",
                           color: gender === g ? "#fff" : "#9ca3af",
                           fontWeight: gender === g ? 600 : 400,
                         }}>{g === "other" ? "?" : g === "male" ? "M" : "F"}</button>
@@ -334,9 +336,9 @@ function OnboardingFlow({
             <div className="space-y-2 mb-6">
               {ACTIVITIES.map(({ key, label, desc, emoji }) => (
                 <button key={key} onClick={() => setActivity(key)}
-                  className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all ${activity !== key ? "border-gray-200 dark:border-zinc-600" : ""}`}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all"
                   style={{
-                    borderColor: activity === key ? "#111" : undefined,
+                    borderColor: activity === key ? "#111" : "#e5e7eb",
                     background: activity === key ? "#f9fafb" : "transparent",
                   }}>
                   <span className="text-2xl">{emoji}</span>
@@ -369,9 +371,9 @@ function OnboardingFlow({
             <div className="space-y-2 mb-6">
               {GOALS.map(({ key, label, desc, emoji }) => (
                 <button key={key} onClick={() => setGoal(key)}
-                  className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all ${goal !== key ? "border-gray-200 dark:border-zinc-600" : ""}`}
+                  className="w-full flex items-center gap-4 px-4 py-4 rounded-2xl border-2 text-left transition-all"
                   style={{
-                    borderColor: goal === key ? "#111" : undefined,
+                    borderColor: goal === key ? "#111" : "#e5e7eb",
                     background: goal === key ? "#f9fafb" : "transparent",
                   }}>
                   <span className="text-2xl">{emoji}</span>
@@ -415,7 +417,7 @@ function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
   const color = pct > 1 ? "#E24B4A" : pct > 0.85 ? "#F59E0B" : "#22C55E";
   return (
     <svg width={112} height={112}>
-      <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={10} className="stroke-gray-200 dark:stroke-zinc-700" />
+      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f3f4f6" strokeWidth={10} />
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={10}
         strokeDasharray={`${pct * circ} ${circ}`} strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cy})`} />
@@ -454,13 +456,19 @@ function MealTimeEditor({
   };
 
   return (
-    <div className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
+    <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
       {/* Date selector */}
       <p className="text-xs font-medium text-gray-400 mb-2">Log date</p>
       <div className="flex gap-1 overflow-x-auto pb-1 mb-3 scrollbar-hide">
         {dateOptions.map(({ iso, label }) => (
           <button key={iso} onClick={() => handleDateChange(iso)}
-            className={`flex-shrink-0 text-xs px-3 py-1.5 rounded-full border transition-all whitespace-nowrap ${selectedDate === iso ? "bg-gray-900 dark:bg-white border-gray-900 dark:border-white text-white dark:text-gray-900 font-semibold" : "bg-white dark:bg-zinc-800 border-gray-300 dark:border-zinc-600 text-gray-600 dark:text-gray-400"}`}>{label}</button>
+            className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border transition-all whitespace-nowrap"
+            style={{
+              background: selectedDate === iso ? "#111" : "#ffffff",
+              borderColor: selectedDate === iso ? "#111" : "#d1d5db",
+              color: selectedDate === iso ? "#fff" : "#4b5563",
+              fontWeight: selectedDate === iso ? 600 : 400,
+            }}>{label}</button>
         ))}
       </div>
       <p className="text-xs font-medium text-gray-400 mb-2">Meal type</p>
@@ -469,11 +477,11 @@ function MealTimeEditor({
           const active = mealType === key;
           return (
             <button key={key} onClick={() => onTypeChange(key)}
-              className={`flex flex-col items-center py-2 rounded-xl border text-xs transition-all ${!active ? "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-600 text-gray-500 dark:text-gray-400" : ""}`}
+              className="flex flex-col items-center py-2 rounded-xl border text-xs transition-all"
               style={{
-                background: active ? MEAL_TYPE_COLORS[key] + "18" : undefined,
-                borderColor: active ? MEAL_TYPE_COLORS[key] : undefined,
-                color: active ? MEAL_TYPE_COLORS[key] : undefined,
+                background: active ? MEAL_TYPE_COLORS[key] + "18" : "#ffffff",
+                borderColor: active ? MEAL_TYPE_COLORS[key] : "#d1d5db",
+                color: active ? MEAL_TYPE_COLORS[key] : "#4b5563",
                 fontWeight: active ? 600 : 400,
               }}>
               <span className="text-base mb-0.5">{emoji}</span>{label}
@@ -540,7 +548,8 @@ function BarChart({ meals, type, onBarClick, calorieGoal: calGoal, proteinGoal: 
       </div>
       <div className="flex gap-1 mt-1">
         {data.map((d, i) => (
-          <div key={d.date} className={`flex-1 text-center ${i === 6 ? "font-semibold text-gray-700 dark:text-gray-200" : "text-gray-400"}`} style={{ fontSize: 9 }}>
+          <div key={d.date} className="flex-1 text-center"
+            style={{ fontSize: 9, color: i === 6 ? "#374151" : "#9ca3af", fontWeight: i === 6 ? 600 : 400 }}>
             {new Date(d.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "narrow" })}
           </div>
         ))}
@@ -593,7 +602,8 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
         <div className="flex gap-1">
           {(["day", "week", "month"] as const).map(p => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={`text-xs px-3 py-1 rounded-full transition-colors capitalize ${period === p ? "bg-gray-100 dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
+              className="text-xs px-3 py-1 rounded-full transition-colors capitalize"
+              style={{ background: period === p ? "#f3f4f6" : "transparent", fontWeight: period === p ? 600 : 400, color: period === p ? "#111" : "#6b7280" }}>
               {p}
             </button>
           ))}
@@ -692,7 +702,8 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
   const MealRow = ({ m, i, total }: { m: Meal; i: number; total: number }) => {
     const isFav = favKeys.includes(m.name.toLowerCase());
     return (
-      <div className={`flex items-center ${i < total - 1 ? "border-b border-gray-100 dark:border-zinc-800" : ""}`}>
+      <div className="flex items-center"
+        style={{ borderBottom: i < total - 1 ? "1px solid #e5e7eb" : "none" }}>
         <button onClick={() => onRelog(m)}
           className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 text-left transition-colors">
           <div>
@@ -1023,10 +1034,10 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
                 const active = editType === key;
                 return (
                   <button key={key} onClick={() => setEditType(key)}
-                    className={`flex flex-col items-center py-1.5 rounded-xl border text-xs transition-all ${!active ? "border-gray-200 dark:border-zinc-600" : ""}`}
+                    className="flex flex-col items-center py-1.5 rounded-xl border text-xs transition-all"
                     style={{
                       background: active ? MEAL_TYPE_COLORS[key] + "18" : "transparent",
-                      borderColor: active ? MEAL_TYPE_COLORS[key] : undefined,
+                      borderColor: active ? MEAL_TYPE_COLORS[key] : "#e5e7eb",
                       color: active ? MEAL_TYPE_COLORS[key] : "#9ca3af",
                       fontWeight: active ? 600 : 400,
                     }}>
@@ -1038,7 +1049,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           </div>
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Meal time</p>
-            <div className="flex items-center justify-between bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
+            <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
               <button onClick={() => setEditTime(d => new Date(d.getTime() - 30 * 60000))}
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">−</button>
               <span className="text-sm font-semibold tabular-nums">
@@ -1081,9 +1092,9 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 function DayLoggedButton({ confirmed, onToggle }: { confirmed: boolean; onToggle: () => void }) {
   return (
     <button onClick={onToggle}
-      className={`w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all mt-4 ${!confirmed ? "border-gray-200 dark:border-zinc-700" : ""}`}
+      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all mt-4"
       style={{
-        borderColor: confirmed ? "#22C55E" : undefined,
+        borderColor: confirmed ? "#22C55E" : "#e5e7eb",
         background: confirmed ? "#22C55E14" : "transparent",
         color: confirmed ? "#22C55E" : "#9ca3af",
       }}>
@@ -1144,23 +1155,19 @@ export default function TrackerPage() {
   const [showShareCard, setShowShareCard] = useState(false);
   const today = todayISO();
 
-  // #34 — Apply theme before first paint to prevent flash
   useEffect(() => {
+    const stored = localStorage.getItem(`dayConfirmed:${userId}`);
+    if (stored === today) setDayConfirmed(true);
+    // #34 — Apply saved theme on load (also done in layout.tsx head script for flash prevention)
     const savedTheme = localStorage.getItem("caloriq-theme");
     if (savedTheme === "dark") {
       document.documentElement.classList.add("dark");
       setIsDark(true);
     } else {
-      // Default to light mode — remove dark class regardless
       document.documentElement.classList.remove("dark");
       localStorage.setItem("caloriq-theme", "light");
       setIsDark(false);
     }
-  }, []);
-
-  useEffect(() => {
-    const stored = localStorage.getItem(`dayConfirmed:${userId}`);
-    if (stored === today) setDayConfirmed(true);
     // #22 load water for today
     const w = localStorage.getItem(`water:${userId}:${today}`);
     if (w) setWaterGlasses(parseInt(w) || 0);
@@ -1620,22 +1627,6 @@ export default function TrackerPage() {
         <OnboardingFlow profile={profile} onComplete={handleOnboardingComplete} />
       )}
 
-      {/* TEMP DEBUG — remove after fix */}
-      <div id="theme-debug" className="text-xs text-center py-1 mb-2 rounded-lg bg-yellow-100 text-yellow-800">
-        Loading theme info...
-      </div>
-      <script dangerouslySetInnerHTML={{__html: `
-        (function() {
-          var el = document.getElementById('theme-debug');
-          if (el) {
-            var theme = localStorage.getItem('caloriq-theme');
-            var hasDark = document.documentElement.classList.contains('dark');
-            el.textContent = 'localStorage: ' + theme + ' | dark class: ' + hasDark;
-            el.style.background = hasDark ? '#fee2e2' : '#dcfce7';
-          }
-        })();
-      `}} />
-
       {/* Pro upgrade success banner */}
       {justUpgraded && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4 mb-4 flex items-center gap-3">
@@ -1695,7 +1686,7 @@ export default function TrackerPage() {
                 ["Carbs",   totals.carbs,   "g", "var(--carb)"],
                 ["Fat",     totals.fat,     "g", "var(--fat)"],
               ] as [string, number, string, string][]).map(([l, v, u, c]) => (
-                <div key={l} className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl p-2 text-center">
+                <div key={l} className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-2 text-center">
                   <p className="text-xs text-gray-400">{l}</p>
                   <p className="text-sm font-medium" style={{ color: c }}>
                     {v}<span className="text-xs font-normal">{u}</span>
@@ -1726,7 +1717,7 @@ export default function TrackerPage() {
         </div>
 
         {/* #22 — Water tracker */}
-        <div className="flex items-center justify-between bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 mb-2">
+        <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 rounded-xl px-3 py-2 mb-2">
           <div className="flex items-center gap-2">
             <span className="text-base">💧</span>
             <div>
@@ -1742,7 +1733,7 @@ export default function TrackerPage() {
             }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">−</button>
             <div className="flex gap-0.5">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className={`w-2 h-3 rounded-sm ${i < waterGlasses ? "bg-blue-500" : "bg-gray-200 dark:bg-zinc-600"}`} />
+                <div key={i} className="w-2 h-3 rounded-sm" style={{ background: i < waterGlasses ? "#3B82F6" : "#e5e7eb" }} />
               ))}
             </div>
             <button onClick={() => {
@@ -1779,7 +1770,8 @@ export default function TrackerPage() {
         <div className="flex gap-2 mb-3">
           {(["calories", "protein"] as ChartType[]).map(t => (
             <button key={t} onClick={() => setChartType(t)}
-              className={`text-xs px-3 py-1 rounded-full capitalize transition-colors ${chartType === t ? "bg-gray-100 dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
+              className="text-xs px-3 py-1 rounded-full capitalize transition-colors"
+              style={{ background: chartType === t ? "#f3f4f6" : "transparent", fontWeight: chartType === t ? 600 : 400, color: chartType === t ? "#111" : "#6b7280" }}>
               {t}
             </button>
           ))}
@@ -1804,7 +1796,8 @@ export default function TrackerPage() {
         <div className="flex flex-1 gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1">
           {([["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
             <button key={t} onClick={() => setTab(t)}
-              className={`flex-1 py-2 text-xs rounded-xl transition-all ${tab === t ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
+              className="flex-1 py-2 text-xs rounded-xl transition-all"
+              style={{ background: tab === t ? "#ffffff" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#6b7280" }}>
               {l}
             </button>
           ))}
@@ -1833,7 +1826,13 @@ export default function TrackerPage() {
           <div className="flex gap-2 mb-4">
             {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
               <button key={key} onClick={() => { setInputMode(key); setPreview(null); setPendingFile(null); setClar(null); setError(""); }}
-                className={`flex-1 py-2 px-1 text-xs rounded-xl border transition-colors ${inputMode === key ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-400 dark:border-indigo-500 font-semibold text-indigo-600 dark:text-indigo-300" : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400"}`}>
+                className="flex-1 py-2 px-1 text-xs rounded-xl border transition-colors"
+                style={{
+                  background: inputMode === key ? "#ede9ff" : "#ffffff",
+                  fontWeight: inputMode === key ? 600 : 400,
+                  borderColor: inputMode === key ? "#7F77DD" : "#e5e7eb",
+                  color: inputMode === key ? "#4f46e5" : "#6b7280",
+                }}>
                 <div className="text-base mb-0.5">{cfg.icon}</div>{cfg.label}
               </button>
             ))}
@@ -2164,11 +2163,13 @@ export default function TrackerPage() {
                   {/* Unit toggle */}
                   <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                     <button onClick={() => setUseImperial(false)}
-                      className={`px-2 py-1 rounded-md transition-all ${!useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
+                      className="px-2 py-1 rounded-md transition-all"
+                      style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#6b7280" }}>
                       kg/cm
                     </button>
                     <button onClick={() => setUseImperial(true)}
-                      className={`px-2 py-1 rounded-md transition-all ${useImperial ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
+                      className="px-2 py-1 rounded-md transition-all"
+                      style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#6b7280" }}>
                       lbs/ft
                     </button>
                   </div>

@@ -12,19 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.png" />
-        {/* #34 — Apply saved theme before first paint to prevent flash */}
-        <script dangerouslySetInnerHTML={{__html: `
-          (function() {
-            try {
-              var theme = localStorage.getItem('caloriq-theme');
-              if (theme === 'dark') {
-                document.documentElement.classList.add('dark');
-              } else {
-                document.documentElement.classList.remove('dark');
-              }
-            } catch(e) {}
-          })();
-        `}} />
+        <script dangerouslySetInnerHTML={{__html: `(function(){try{var t=localStorage.getItem('caloriq-theme');if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})();`}} />
       </head>
       <body className={inter.className}>
         {children}
