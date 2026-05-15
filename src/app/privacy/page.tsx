@@ -112,12 +112,12 @@ export default function PrivacyPage() {
               <li><strong>Export</strong> — download your complete food log as a CSV file at any time</li>
               <li><strong>Cancellation</strong> — cancel your Pro subscription at any time via the billing portal</li>
             </ul>
-            <p>To exercise any of these rights, visit <a href="/account" className="text-blue-500 underline">calor-iq.com/account</a> or contact us at <a href="mailto:lkaspary@gmail.com" className="text-blue-500 underline">lkaspary@gmail.com</a>.</p>
+            <p>To exercise any of these rights, visit <a href="/account" className="text-blue-500 underline">calor-iq.com/account</a> or use the <a href="/account" className="text-blue-500 underline">in-app feedback form</a>.</p>
           </section>
 
           <section>
             <h2 className="text-lg font-bold mb-3 text-gray-900 dark:text-white">8. Children's Privacy</h2>
-            <p>Caloriq is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe we have inadvertently collected such information, please contact us immediately.</p>
+            <p>Caloriq is not intended for children under the age of 13. We do not knowingly collect personal information from children under 13. If you believe we have inadvertently collected such information, please contact us immediately using the in-app feedback form.</p>
           </section>
 
           <section>
@@ -129,7 +129,7 @@ export default function PrivacyPage() {
             <h2 className="text-lg font-bold mb-3 text-gray-900 dark:text-white">10. Contact Us</h2>
             <p className="mb-3">If you have questions, concerns, or requests regarding this Privacy Policy or your data, please contact us:</p>
             <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-xl p-4 space-y-1">
-              <p>📧 <a href="mailto:lkaspary@gmail.com" className="text-blue-500 underline">lkaspary@gmail.com</a></p>
+              <p>💬 <a href="/account" className="text-blue-500 underline">Use the in-app feedback form</a></p>
               <p>🌐 <a href="/account" className="text-blue-500 underline">calor-iq.com/account</a></p>
             </div>
           </section>
