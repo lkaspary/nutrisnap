@@ -2136,10 +2136,12 @@ export default function TrackerPage() {
           </button>
         </div>
         {profile?.is_pro && (
-          <button onClick={handleManageSubscription}
-            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-            💳 Manage or cancel subscription
-          </button>
+          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-zinc-800">
+            <button onClick={handleManageSubscription}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+              💳 Manage or cancel subscription
+            </button>
+          </div>
         )}
       </div>
 
