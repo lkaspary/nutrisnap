@@ -167,16 +167,34 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      prompt = `You are a nutrition expert reading a food label image.
+      prompt = `You are an expert nutrition label reader with exceptional attention to detail.
+
+TASK: Read the Nutrition Facts panel in this image and extract the EXACT printed values.
+
+STEP 1 — Find the panel: Look for "Nutrition Facts" or "Informação Nutricional". It may be rotated, angled, partially cropped, or low contrast — still read it.
+
+STEP 2 — Read these exact fields:
+  • Serving Size / Porção (e.g. "1 cup 240ml", "28g", "2 biscoitos")
+  • Calories / Calorias / Valor Energético (large bold number, per serving)
+  • Total Fat / Gorduras Totais (grams)
+  • Total Carbohydrate / Carboidratos Totais (grams)
+  • Protein / Proteínas (grams)
+
+STEP 3 — CRITICAL serving size logic (most common error):
+  • Label shows per 100g AND per serving → use PER SERVING values
+  • Label shows ONLY per 100g → calculate for the package weight shown
+  • Small single-serve packages (bars, sachets, small bags) → values are often for the ENTIRE package
+  • User says "2 servings" → multiply all values by 2
+  • Energy in kJ only → divide by 4.184 to get kcal
+
+STEP 4 — Sanity check before answering: (protein×4) + (carbs×4) + (fat×9) should roughly equal your calories. If off by more than 20%, re-read the label.
+
 ${hasText ? `User note: "${text}"${clarNote}` : clarNote}
-Instructions:
-- Read exact values from the label if visible
-- If unclear, estimate based on what you can see
-- If user mentioned servings, multiply accordingly
-- ALWAYS provide your best estimate
-- Set confidence to "high" if clearly readable, "medium" if partially unclear
-You MUST respond with ONLY this JSON:
-{"name":"product name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"...","confidence":"high"}`;
+
+IMPORTANT: Return ONLY numbers you can actually see printed. Do NOT invent or estimate values you cannot read. If truly illegible, use 0.
+
+Respond with ONLY this JSON, nothing else:
+{"name":"brand and product name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"exact serving text from label","confidence":"high"}`;
     } else if (mode === "meal") {
       const textHint = hasText ? `\nThe user described the meal as: "${text}"` : "";
       prompt = `You are a nutrition expert estimating the nutritional content of a meal.

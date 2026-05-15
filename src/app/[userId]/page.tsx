@@ -12,12 +12,14 @@ import {
 } from "@/lib/utils";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: string }> {
+// Labels need higher resolution to read small text
+function readFileAsBase64(file: File, isLabel = false): Promise<{ base64: string; mimeType: string }> {
   return new Promise((res, rej) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
     img.onload = () => {
-      const MAX = 800;
+      const MAX = isLabel ? 1600 : 900;
+      const quality = isLabel ? 0.92 : 0.75;
       const scale = Math.min(1, MAX / Math.max(img.width, img.height));
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(img.width * scale);
@@ -26,7 +28,7 @@ function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: strin
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, canvas.width, canvas.height);
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+      const dataUrl = canvas.toDataURL("image/jpeg", quality);
       URL.revokeObjectURL(url);
       res({ base64: dataUrl.split(",")[1], mimeType: "image/jpeg" });
     };
@@ -113,10 +115,11 @@ function WeeklyCard({
   const weekMeals = meals.filter(m => last7.includes(m.meal_date));
   const daysLogged = new Set(weekMeals.map(m => m.meal_date)).size;
 
+  // #42 — Only count days with ≥2 meals as "full logged days" for averages
   const dailyTotals = last7.map(date => {
     const dayMeals = weekMeals.filter(m => m.meal_date === date);
-    return { date, calories: sumMacros(dayMeals).calories };
-  }).filter(d => d.calories > 0);
+    return { date, calories: sumMacros(dayMeals).calories, mealCount: dayMeals.length };
+  }).filter(d => d.mealCount >= 2); // full days only
 
   const avgCalories = dailyTotals.length
     ? Math.round(dailyTotals.reduce((s, d) => s + d.calories, 0) / dailyTotals.length)
@@ -147,9 +150,7 @@ function WeeklyCard({
             {isSunday ? "Weekly review ready" : "This week so far"}
           </p>
           <p className="text-xs text-gray-400 truncate">
-            {daysLogged}/7 days · avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>
-            {avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}
-            {bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}
+            {daysLogged}/7 days · {dailyTotals.length > 0 ? <>avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>{avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}{bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}</> : "log more meals for avg"}
           </p>
         </div>
         <span className="text-gray-300 text-xs flex-shrink-0">{showInsights ? "▲" : "▼"}</span>
@@ -262,12 +263,12 @@ function OnboardingFlow({
               <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                 <button onClick={() => setUseImperial(false)}
                   className="px-3 py-1 rounded-md transition-all"
-                  style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#9ca3af" }}>
+                  style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#6b7280" }}>
                   kg/cm
                 </button>
                 <button onClick={() => setUseImperial(true)}
                   className="px-3 py-1 rounded-md transition-all"
-                  style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#9ca3af" }}>
+                  style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#6b7280" }}>
                   lbs/ft
                 </button>
               </div>
@@ -418,7 +419,8 @@ function CalorieRing({ eaten, goal }: { eaten: number; goal: number }) {
   const color = pct > 1 ? "#E24B4A" : pct > 0.85 ? "#F59E0B" : "#22C55E";
   return (
     <svg width={112} height={112}>
-      <circle cx={cx} cy={cy} r={r} fill="none" stroke="#f3f4f6" strokeWidth={10} />
+      <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={10}
+        className="stroke-gray-200 dark:stroke-zinc-700" />
       <circle cx={cx} cy={cy} r={r} fill="none" stroke={color} strokeWidth={10}
         strokeDasharray={`${pct * circ} ${circ}`} strokeLinecap="round"
         transform={`rotate(-90 ${cx} ${cy})`} />
@@ -465,9 +467,9 @@ function MealTimeEditor({
           <button key={iso} onClick={() => handleDateChange(iso)}
             className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border transition-all whitespace-nowrap"
             style={{
-              background: selectedDate === iso ? "#111" : "transparent",
-              borderColor: selectedDate === iso ? "#111" : "#e5e7eb",
-              color: selectedDate === iso ? "#fff" : "#9ca3af",
+              background: selectedDate === iso ? "#111" : "#ffffff",
+              borderColor: selectedDate === iso ? "#111" : "#d1d5db",
+              color: selectedDate === iso ? "#fff" : "#4b5563",
               fontWeight: selectedDate === iso ? 600 : 400,
             }}>{label}</button>
         ))}
@@ -480,9 +482,9 @@ function MealTimeEditor({
             <button key={key} onClick={() => onTypeChange(key)}
               className="flex flex-col items-center py-2 rounded-xl border text-xs transition-all"
               style={{
-                background: active ? MEAL_TYPE_COLORS[key] + "18" : "transparent",
-                borderColor: active ? MEAL_TYPE_COLORS[key] : "#e5e7eb",
-                color: active ? MEAL_TYPE_COLORS[key] : "#9ca3af",
+                background: active ? MEAL_TYPE_COLORS[key] + "18" : "#ffffff",
+                borderColor: active ? MEAL_TYPE_COLORS[key] : "#d1d5db",
+                color: active ? MEAL_TYPE_COLORS[key] : "#4b5563",
                 fontWeight: active ? 600 : 400,
               }}>
               <span className="text-base mb-0.5">{emoji}</span>{label}
@@ -603,8 +605,7 @@ function AnalyticsTable({ meals, onClose }: { meals: Meal[]; onClose: () => void
         <div className="flex gap-1">
           {(["day", "week", "month"] as const).map(p => (
             <button key={p} onClick={() => setPeriod(p)}
-              className="text-xs px-3 py-1 rounded-full transition-colors capitalize"
-              style={{ background: period === p ? "#f3f4f6" : "transparent", fontWeight: period === p ? 600 : 400, color: period === p ? "#111" : "#9ca3af" }}>
+              className={`text-xs px-3 py-1 rounded-full transition-colors capitalize ${period === p ? "bg-gray-100 dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
               {p}
             </button>
           ))}
@@ -704,7 +705,7 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
     const isFav = favKeys.includes(m.name.toLowerCase());
     return (
       <div className="flex items-center"
-        style={{ borderBottom: i < total - 1 ? "1px solid #f3f4f6" : "none" }}>
+        style={{ borderBottom: i < total - 1 ? "1px solid #e5e7eb" : "none" }}>
         <button onClick={() => onRelog(m)}
           className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 text-left transition-colors">
           <div>
@@ -746,12 +747,199 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
       <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search previously logged foods…"
         className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-gray-400 mb-2" />
       {filtered.length > 0 && (
-        <div className="border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden">
+        <div className="border border-gray-200 dark:border-zinc-700 rounded-xl overflow-hidden bg-white dark:bg-zinc-900">
           {filtered.map((m, i) => <MealRow key={m.id} m={m} i={i} total={filtered.length} />)}
         </div>
       )}
     </div>
   );
+}
+
+// ── ShareDaySummaryCard (#24) ─────────────────────────────────────────────────
+function ShareDaySummaryCard({
+  name, date, calories, calorieGoal, protein, carbs, fat, streak, onClose,
+}: {
+  name: string; date: string; calories: number; calorieGoal: number;
+  protein: number; carbs: number; fat: number; streak: number; onClose: () => void;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [shareUrl, setShareUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const friendlyDate = new Date(date + "T00:00:00").toLocaleDateString("en-US", {
+    weekday: "long", month: "long", day: "numeric",
+  });
+  const pct = Math.min(Math.round((calories / calorieGoal) * 100), 999);
+  const onTarget = Math.abs(calories - calorieGoal) < 150;
+  const over = calories > calorieGoal + 150;
+  const statusEmoji = onTarget ? "🎯" : over ? "📈" : "📉";
+  const statusText = onTarget ? "Right on target!" : over ? `${calories - calorieGoal} kcal over goal` : `${calorieGoal - calories} kcal under goal`;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const W = 640, H = 360;
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext("2d")!;
+
+    // Background gradient
+    const grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, "#0f0f1a");
+    grad.addColorStop(1, "#1a1230");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+
+    // Decorative arc
+    ctx.beginPath();
+    ctx.arc(W + 60, -60, 280, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(127,119,221,0.08)";
+    ctx.fill();
+
+    // Logo / brand
+    ctx.fillStyle = "#7F77DD";
+    ctx.font = "bold 18px system-ui, sans-serif";
+    ctx.fillText("Caloriq", 36, 48);
+
+    // Date
+    ctx.fillStyle = "rgba(255,255,255,0.45)";
+    ctx.font = "13px system-ui, sans-serif";
+    ctx.fillText(friendlyDate, 36, 70);
+
+    // Name
+    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.font = "bold 15px system-ui, sans-serif";
+    ctx.fillText(name, 36, 95);
+
+    // Big calorie number
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "bold 72px system-ui, sans-serif";
+    ctx.fillText(String(calories), 36, 185);
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.font = "20px system-ui, sans-serif";
+    ctx.fillText("kcal", 36 + ctx.measureText(String(calories)).width + 10, 178);
+
+    // Progress bar
+    const barX = 36, barY = 200, barW = 360, barH = 8;
+    ctx.fillStyle = "rgba(255,255,255,0.1)";
+    roundRect(ctx, barX, barY, barW, barH, 4);
+    ctx.fill();
+    const fillW = Math.min((calories / calorieGoal) * barW, barW);
+    ctx.fillStyle = onTarget ? "#22C55E" : over ? "#E24B4A" : "#7F77DD";
+    roundRect(ctx, barX, barY, fillW, barH, 4);
+    ctx.fill();
+
+    // Goal label
+    ctx.fillStyle = "rgba(255,255,255,0.35)";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText(`${pct}% of ${calorieGoal} kcal goal`, barX, 228);
+
+    // Status
+    ctx.fillStyle = onTarget ? "#22C55E" : over ? "#E24B4A" : "#A78BFA";
+    ctx.font = "bold 14px system-ui, sans-serif";
+    ctx.fillText(`${statusEmoji}  ${statusText}`, barX, 255);
+
+    // Macros row
+    const macros = [
+      { label: "Protein", value: `${protein}g`, color: "#1D9E75" },
+      { label: "Carbs",   value: `${carbs}g`,   color: "#378ADD" },
+      { label: "Fat",     value: `${fat}g`,     color: "#EF9F27" },
+    ];
+    macros.forEach((m, i) => {
+      const mx = barX + i * 120;
+      const my = 300;
+      ctx.fillStyle = "rgba(255,255,255,0.07)";
+      roundRect(ctx, mx, my, 108, 44, 10);
+      ctx.fill();
+      ctx.fillStyle = m.color;
+      ctx.font = "bold 16px system-ui, sans-serif";
+      ctx.fillText(m.value, mx + 12, my + 20);
+      ctx.fillStyle = "rgba(255,255,255,0.4)";
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText(m.label, mx + 12, my + 36);
+    });
+
+    // Streak badge
+    if (streak > 0) {
+      ctx.fillStyle = "rgba(249,115,22,0.15)";
+      roundRect(ctx, W - 130, 36, 96, 36, 18);
+      ctx.fill();
+      ctx.fillStyle = "#f97316";
+      ctx.font = "bold 14px system-ui, sans-serif";
+      ctx.fillText(`🔥 ${streak} day${streak > 1 ? "s" : ""}`, W - 117, 59);
+    }
+
+    setShareUrl(canvas.toDataURL("image/png"));
+  }, [calories, calorieGoal, protein, carbs, fat, streak, friendlyDate, name, onTarget, over, pct, statusText]);
+
+  const handleDownload = () => {
+    if (!shareUrl) return;
+    const a = document.createElement("a");
+    a.href = shareUrl;
+    a.download = `caloriq-${date}.png`;
+    a.click();
+  };
+
+  const handleShare = async () => {
+    if (!shareUrl) return;
+    if (navigator.share && navigator.canShare) {
+      try {
+        const blob = await (await fetch(shareUrl)).blob();
+        const file = new File([blob], `caloriq-${date}.png`, { type: "image/png" });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: "My daily nutrition — Caloriq" });
+          return;
+        }
+      } catch { /* fall through */ }
+    }
+    // Fallback: copy image to clipboard
+    try {
+      const blob = await (await fetch(shareUrl)).blob();
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      handleDownload();
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl overflow-hidden w-full max-w-sm shadow-2xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-zinc-800">
+          <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Share today's summary</p>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+        </div>
+        <div className="p-4">
+          <canvas ref={canvasRef} className="w-full rounded-xl" style={{ display: shareUrl ? "block" : "none" }} />
+          {!shareUrl && <div className="h-40 bg-gray-100 dark:bg-zinc-800 rounded-xl animate-pulse" />}
+          <div className="flex gap-2 mt-3">
+            <button onClick={handleShare}
+              className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl py-2.5 text-sm font-medium transition-colors">
+              {copied ? "✅ Copied!" : "📤 Share"}
+            </button>
+            <button onClick={handleDownload}
+              className="flex-1 bg-gray-100 dark:bg-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-600 text-gray-700 dark:text-gray-200 rounded-xl py-2.5 text-sm font-medium transition-colors">
+              ⬇️ Save
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
 }
 
 // ── MealCard ──────────────────────────────────────────────────────────────────
@@ -963,11 +1151,17 @@ export default function TrackerPage() {
   const [insightsLoading, setInsightsLoading] = useState(false);
   const [insightsFetchedFor, setInsightsFetchedFor] = useState<string | null>(null); // date string, prevents re-fetch
   const [showOnboarding, setShowOnboarding] = useState(false); // #33
+  // #34 — Dark mode toggle
+  const [isDark, setIsDark] = useState(false);
+  // #24 — Share meal card
+  const [showShareCard, setShowShareCard] = useState(false);
   const today = todayISO();
 
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
+    // #34 — Sync dark mode state from DOM (set by layout script)
+    setIsDark(document.documentElement.classList.contains("dark"));
     // #22 load water for today
     const w = localStorage.getItem(`water:${userId}:${today}`);
     if (w) setWaterGlasses(parseInt(w) || 0);
@@ -1027,15 +1221,7 @@ export default function TrackerPage() {
     }
   }, [tab]);
 
-  // Auto-fetch insights on Sundays once history meals are loaded
-  useEffect(() => {
-    if (!ready || historyMeals.length === 0 || insightsFetchedFor === today) return;
-    const isSunday = new Date().getDay() === 0;
-    if (isSunday) {
-      fetchInsights({ silent: true });
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, historyMeals.length]);
+  // #42 — Insights only on explicit button press. No auto-fetch.
 
   const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
   const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
@@ -1151,9 +1337,11 @@ export default function TrackerPage() {
     try {
       const last7 = getLast7Days();
       const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
+      // #42 — Only count days with ≥2 meals as fully logged for accurate averages
       const mealSummary = last7.map(date => {
         const dayMeals = weekMeals.filter(m => m.meal_date === date);
         if (dayMeals.length === 0) return `${date}: no meals logged`;
+        if (dayMeals.length === 1) return `${date}: partially logged (${dayMeals[0].name}) — exclude from averages`;
         const t = sumMacros(dayMeals);
         return `${date}: ${t.calories} kcal, P:${t.protein}g C:${t.carbs}g F:${t.fat}g (${dayMeals.map(m => m.name).join(", ")})`;
       }).join("\n");
@@ -1189,6 +1377,19 @@ export default function TrackerPage() {
     const { supabase: sb } = await import("@/lib/supabase");
     await sb.auth.signOut();
     router.push("/");
+  };
+
+  // #34 — Dark mode toggle
+  const toggleDark = () => {
+    const next = !isDark;
+    setIsDark(next);
+    if (next) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("caloriq-theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("caloriq-theme", "light");
+    }
   };
 
   const handleRelog = useCallback((m: Meal) => {
@@ -1371,7 +1572,7 @@ export default function TrackerPage() {
     try {
       let b64: string | null = null, mime: string | null = null;
       if (inputMode !== "text" && pendingFile) {
-        const r = await readFileAsBase64(pendingFile);
+        const r = await readFileAsBase64(pendingFile, inputMode === "label");
         b64 = r.base64; mime = r.mimeType;
         setPendingB64(b64); setPendingMime(mime);
       }
@@ -1479,7 +1680,7 @@ export default function TrackerPage() {
                 ["Carbs",   totals.carbs,   "g", "var(--carb)"],
                 ["Fat",     totals.fat,     "g", "var(--fat)"],
               ] as [string, number, string, string][]).map(([l, v, u, c]) => (
-                <div key={l} className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-2 text-center">
+                <div key={l} className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl p-2 text-center">
                   <p className="text-xs text-gray-400">{l}</p>
                   <p className="text-sm font-medium" style={{ color: c }}>
                     {v}<span className="text-xs font-normal">{u}</span>
@@ -1492,11 +1693,19 @@ export default function TrackerPage() {
                 style={{ width: `${Math.min((totals.protein / proteinGoal) * 100, 100)}%`, background: "var(--prot)" }} />
             </div>
             <p className="text-xs text-gray-400 mt-1">{totals.protein}g / {proteinGoal}g protein</p>
-            <div className="mt-2 flex items-center gap-1">
-              <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
-              <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
-                {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
-              </span>
+            <div className="mt-2 flex items-center justify-between">
+              <div className="flex items-center gap-1">
+                <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
+                <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
+                  {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
+                </span>
+              </div>
+              {totals.calories > 0 && (
+                <button onClick={() => setShowShareCard(true)}
+                  className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
+                  📤 Share
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -1518,7 +1727,7 @@ export default function TrackerPage() {
             }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">−</button>
             <div className="flex gap-0.5">
               {Array.from({ length: 8 }).map((_, i) => (
-                <div key={i} className="w-2 h-3 rounded-sm" style={{ background: i < waterGlasses ? "#3B82F6" : "#e5e7eb" }} />
+                <div key={i} className={`w-2 h-3 rounded-sm ${i < waterGlasses ? "bg-blue-500" : "bg-gray-200 dark:bg-zinc-600"}`} />
               ))}
             </div>
             <button onClick={() => {
@@ -1555,8 +1764,7 @@ export default function TrackerPage() {
         <div className="flex gap-2 mb-3">
           {(["calories", "protein"] as ChartType[]).map(t => (
             <button key={t} onClick={() => setChartType(t)}
-              className="text-xs px-3 py-1 rounded-full capitalize transition-colors"
-              style={{ background: chartType === t ? "#f3f4f6" : "transparent", fontWeight: chartType === t ? 600 : 400, color: chartType === t ? "#111" : "#9ca3af" }}>
+              className={`text-xs px-3 py-1 rounded-full capitalize transition-colors ${chartType === t ? "bg-gray-100 dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
               {t}
             </button>
           ))}
@@ -1571,9 +1779,9 @@ export default function TrackerPage() {
         <button onClick={() => setTab("add")}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all shadow-sm"
           style={{
-            background: tab === "add" ? "#111" : "linear-gradient(135deg,#7F77DD,#5b54c4)",
+            background: "linear-gradient(135deg,#7F77DD,#5b54c4)",
             color: "#fff",
-            boxShadow: tab === "add" ? "none" : "0 2px 8px rgba(127,119,221,0.45)",
+            boxShadow: tab === "add" ? "0 2px 8px rgba(127,119,221,0.45)" : "0 2px 8px rgba(127,119,221,0.45)",
             minWidth: "90px",
           }}>
           <span style={{ fontSize: "1rem", lineHeight: 1 }}>＋</span> Log meal
@@ -1581,8 +1789,7 @@ export default function TrackerPage() {
         <div className="flex flex-1 gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1">
           {([["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
             <button key={t} onClick={() => setTab(t)}
-              className="flex-1 py-2 text-xs rounded-xl transition-all"
-              style={{ background: tab === t ? "#f3f4f6" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#9ca3af" }}>
+              className={`flex-1 py-2 text-xs rounded-xl transition-all ${tab === t ? "bg-white dark:bg-zinc-700 font-semibold text-gray-900 dark:text-gray-100" : "text-gray-500 dark:text-gray-400"}`}>
               {l}
             </button>
           ))}
@@ -1611,13 +1818,7 @@ export default function TrackerPage() {
           <div className="flex gap-2 mb-4">
             {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
               <button key={key} onClick={() => { setInputMode(key); setPreview(null); setPendingFile(null); setClar(null); setError(""); }}
-                className="flex-1 py-2 px-1 text-xs rounded-xl border transition-colors"
-                style={{
-                  background: inputMode === key ? "#f3f4f6" : "transparent",
-                  fontWeight: inputMode === key ? 600 : 400,
-                  borderColor: inputMode === key ? "#d1d5db" : "#e5e7eb",
-                  color: inputMode === key ? "#111" : "#9ca3af",
-                }}>
+                className={`flex-1 py-2 px-1 text-xs rounded-xl border transition-colors ${inputMode === key ? "bg-indigo-50 dark:bg-indigo-900/30 border-indigo-400 dark:border-indigo-500 font-semibold text-indigo-600 dark:text-indigo-300" : "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-700 text-gray-500 dark:text-gray-400"}`}>
                 <div className="text-base mb-0.5">{cfg.icon}</div>{cfg.label}
               </button>
             ))}
@@ -1703,7 +1904,8 @@ export default function TrackerPage() {
                     className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
                 )}
                 <button onClick={startAnalysis} disabled={loading || !canSubmit}
-                  className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                  className="flex-[2] rounded-xl py-2.5 text-sm font-medium disabled:opacity-40"
+                  style={{ background: "linear-gradient(135deg,#7F77DD,#5b54c4)", color: "#fff" }}>
                   {loading ? loadingMsg : inputMode === "label" ? "Read label" : inputMode === "meal" ? "Analyze photo" : "Search & estimate"}
                 </button>
               </div>
@@ -1824,6 +2026,21 @@ export default function TrackerPage() {
         </button>
       </div>
 
+      {/* #24 — Share day summary card */}
+      {showShareCard && (
+        <ShareDaySummaryCard
+          name={profile?.name ?? ""}
+          date={today}
+          calories={totals.calories}
+          calorieGoal={calorieGoal}
+          protein={totals.protein}
+          carbs={totals.carbs}
+          fat={totals.fat}
+          streak={streak}
+          onClose={() => setShowShareCard(false)}
+        />
+      )}
+
       {/* Upgrade modal */}
       {showUpgrade && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
@@ -1869,10 +2086,10 @@ export default function TrackerPage() {
                 <div className="flex gap-2">
                   <input
                     value={promoCode}
-                    onChange={e => setPromoCode(e.target.value.toUpperCase())}
+                    onChange={e => setPromoCode(e.target.value.toUpperCase().trim())}
                     onKeyDown={e => e.key === "Enter" && handlePromoCode()}
                     placeholder="Enter promo code"
-                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-blue-400 uppercase"
+                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-blue-400 uppercase tracking-widest"
                   />
                   <button onClick={handlePromoCode} disabled={promoLoading || !promoCode.trim()}
                     className="bg-blue-500 text-white rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-40">
@@ -1899,6 +2116,10 @@ export default function TrackerPage() {
           </button>
           <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">🔒 Privacy</a>
           <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">👤 My account</a>
+          {/* #34 — Dark mode toggle */}
+          <button onClick={toggleDark} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            {isDark ? "☀️ Light mode" : "🌙 Dark mode"}
+          </button>
         </div>
         {profile?.is_pro && (
           <button onClick={handleManageSubscription}
@@ -1929,12 +2150,12 @@ export default function TrackerPage() {
                   <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                     <button onClick={() => setUseImperial(false)}
                       className="px-2 py-1 rounded-md transition-all"
-                      style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#9ca3af" }}>
+                      style={{ background: !useImperial ? "#fff" : "transparent", fontWeight: !useImperial ? 600 : 400, color: !useImperial ? "#111" : "#6b7280" }}>
                       kg/cm
                     </button>
                     <button onClick={() => setUseImperial(true)}
                       className="px-2 py-1 rounded-md transition-all"
-                      style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#9ca3af" }}>
+                      style={{ background: useImperial ? "#fff" : "transparent", fontWeight: useImperial ? 600 : 400, color: useImperial ? "#111" : "#6b7280" }}>
                       lbs/ft
                     </button>
                   </div>

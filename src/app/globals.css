@@ -1,7 +1,79 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-:root{--cal:#7F77DD;--prot:#1D9E75;--carb:#378ADD;--fat:#EF9F27}
-*{box-sizing:border-box}
-body{background:#f5f5f3;color:#1a1a1a;-webkit-font-smoothing:antialiased}
-@media(prefers-color-scheme:dark){body{background:#111;color:#f0f0f0}}
+
+:root {
+  --cal: #7F77DD;
+  --prot: #1D9E75;
+  --carb: #378ADD;
+  --fat: #EF9F27;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background: #f0efed;
+  color: #1a1a1a;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Dark mode (class-based, toggled by JS) ─────────────────────────────── */
+.dark body {
+  background: #111;
+  color: #f0f0f0;
+}
+
+/* ── LIGHT MODE: inputs ─────────────────────────────────────────────────── */
+:not(.dark) input,
+:not(.dark) textarea,
+:not(.dark) select {
+  background: #ffffff !important;
+  color: #1a1a1a !important;
+  border-color: #d1d5db !important;
+}
+
+:not(.dark) input::placeholder,
+:not(.dark) textarea::placeholder {
+  color: #9ca3af !important;
+}
+
+/* ── LIGHT MODE: macro boxes and bg-gray-50 elements ───────────────────── */
+:not(.dark) .bg-gray-50 {
+  background: #f9f9f7 !important;
+}
+
+/* ── LIGHT MODE: text contrast ──────────────────────────────────────────── */
+:not(.dark) .text-gray-400 { color: #6b7280 !important; }
+:not(.dark) .text-gray-300 { color: #9ca3af !important; }
+:not(.dark) .text-gray-500 { color: #4b5563 !important; }
+:not(.dark) .border-gray-100 { border-color: #e5e7eb !important; }
+:not(.dark) .border-gray-200 { border-color: #d1d5db !important; }
+
+/* ── LIGHT MODE: charts ─────────────────────────────────────────────────── */
+:not(.dark) svg text { fill: #4b5563 !important; }
+:not(.dark) svg text[font-weight="600"],
+:not(.dark) svg text[fontWeight="600"] { fill: #111827 !important; }
+
+/* ── DARK MODE: inputs ──────────────────────────────────────────────────── */
+.dark input,
+.dark textarea,
+.dark select {
+  background: #27272a !important;
+  color: #f4f4f5 !important;
+  border-color: #52525b !important;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #71717a !important;
+}
+
+/* ── DARK MODE: tables ──────────────────────────────────────────────────── */
+.dark table { background: transparent; }
+.dark thead tr { background: #18181b !important; }
+.dark tbody tr:nth-child(even) { background: #09090b !important; }
+.dark tbody tr:nth-child(odd)  { background: #18181b !important; }
+.dark tfoot tr { background: #27272a !important; }
+
+/* ── DARK MODE: SVG ─────────────────────────────────────────────────────── */
+.dark svg text { fill: #a1a1aa !important; }
