@@ -454,7 +454,7 @@ function MealTimeEditor({
   };
 
   return (
-    <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
+    <div className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
       {/* Date selector */}
       <p className="text-xs font-medium text-gray-400 mb-2">Log date</p>
       <div className="flex gap-1 overflow-x-auto pb-1 mb-3 scrollbar-hide">
@@ -469,11 +469,11 @@ function MealTimeEditor({
           const active = mealType === key;
           return (
             <button key={key} onClick={() => onTypeChange(key)}
-              className={`flex flex-col items-center py-2 rounded-xl border text-xs transition-all ${!active ? "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-600" : ""}`}
+              className={`flex flex-col items-center py-2 rounded-xl border text-xs transition-all ${!active ? "bg-white dark:bg-zinc-900 border-gray-200 dark:border-zinc-600 text-gray-500 dark:text-gray-400" : ""}`}
               style={{
                 background: active ? MEAL_TYPE_COLORS[key] + "18" : undefined,
                 borderColor: active ? MEAL_TYPE_COLORS[key] : undefined,
-                color: active ? MEAL_TYPE_COLORS[key] : "#4b5563",
+                color: active ? MEAL_TYPE_COLORS[key] : undefined,
                 fontWeight: active ? 600 : 400,
               }}>
               <span className="text-base mb-0.5">{emoji}</span>{label}
@@ -1038,7 +1038,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           </div>
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Meal time</p>
-            <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
+            <div className="flex items-center justify-between bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2">
               <button onClick={() => setEditTime(d => new Date(d.getTime() - 30 * 60000))}
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">−</button>
               <span className="text-sm font-semibold tabular-nums">
@@ -1667,7 +1667,7 @@ export default function TrackerPage() {
                 ["Carbs",   totals.carbs,   "g", "var(--carb)"],
                 ["Fat",     totals.fat,     "g", "var(--fat)"],
               ] as [string, number, string, string][]).map(([l, v, u, c]) => (
-                <div key={l} className="bg-gray-50 dark:bg-zinc-800 rounded-xl p-2 text-center">
+                <div key={l} className="bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl p-2 text-center">
                   <p className="text-xs text-gray-400">{l}</p>
                   <p className="text-sm font-medium" style={{ color: c }}>
                     {v}<span className="text-xs font-normal">{u}</span>
@@ -1698,7 +1698,7 @@ export default function TrackerPage() {
         </div>
 
         {/* #22 — Water tracker */}
-        <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 rounded-xl px-3 py-2 mb-2">
+        <div className="flex items-center justify-between bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-xl px-3 py-2 mb-2">
           <div className="flex items-center gap-2">
             <span className="text-base">💧</span>
             <div>

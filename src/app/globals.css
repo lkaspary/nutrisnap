@@ -17,19 +17,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ── Dark mode (class-based, toggled by JS) ─────────────────────────────── */
+/* ── Dark mode — class toggled by JS on <html> ──────────────────────────── */
 .dark body {
   background: #111;
   color: #f0f0f0;
 }
 
-/* ── LIGHT MODE: inputs ─────────────────────────────────────────────────── */
+/* ── Light mode: inputs always white ────────────────────────────────────── */
 :not(.dark) input,
 :not(.dark) textarea,
 :not(.dark) select {
   background: #ffffff !important;
   color: #1a1a1a !important;
-  border-color: #d1d5db !important;
 }
 
 :not(.dark) input::placeholder,
@@ -37,24 +36,7 @@ body {
   color: #9ca3af !important;
 }
 
-/* ── LIGHT MODE: macro boxes and bg-gray-50 elements ───────────────────── */
-:not(.dark) .bg-gray-50 {
-  background: #f9f9f7 !important;
-}
-
-/* ── LIGHT MODE: text contrast ──────────────────────────────────────────── */
-:not(.dark) .text-gray-400 { color: #6b7280 !important; }
-:not(.dark) .text-gray-300 { color: #9ca3af !important; }
-:not(.dark) .text-gray-500 { color: #4b5563 !important; }
-:not(.dark) .border-gray-100 { border-color: #e5e7eb !important; }
-:not(.dark) .border-gray-200 { border-color: #d1d5db !important; }
-
-/* ── LIGHT MODE: charts ─────────────────────────────────────────────────── */
-:not(.dark) svg text { fill: #4b5563 !important; }
-:not(.dark) svg text[font-weight="600"],
-:not(.dark) svg text[fontWeight="600"] { fill: #111827 !important; }
-
-/* ── DARK MODE: inputs ──────────────────────────────────────────────────── */
+/* ── Dark mode: inputs get dark background ───────────────────────────────── */
 .dark input,
 .dark textarea,
 .dark select {
@@ -68,12 +50,21 @@ body {
   color: #71717a !important;
 }
 
-/* ── DARK MODE: tables ──────────────────────────────────────────────────── */
-.dark table { background: transparent; }
+/* ── Light mode: text contrast ───────────────────────────────────────────── */
+:not(.dark) .text-gray-400 { color: #6b7280 !important; }
+:not(.dark) .text-gray-300 { color: #9ca3af !important; }
+:not(.dark) .text-gray-500 { color: #4b5563 !important; }
+
+/* ── Light mode: charts ──────────────────────────────────────────────────── */
+:not(.dark) svg text { fill: #4b5563 !important; }
+:not(.dark) svg text[font-weight="600"],
+:not(.dark) svg text[fontWeight="600"] { fill: #111827 !important; }
+
+/* ── Dark mode: tables ───────────────────────────────────────────────────── */
 .dark thead tr { background: #18181b !important; }
 .dark tbody tr:nth-child(even) { background: #09090b !important; }
-.dark tbody tr:nth-child(odd)  { background: #18181b !important; }
+.dark tbody tr:nth-child(odd) { background: #18181b !important; }
 .dark tfoot tr { background: #27272a !important; }
 
-/* ── DARK MODE: SVG ─────────────────────────────────────────────────────── */
+/* ── Dark mode: SVG text ─────────────────────────────────────────────────── */
 .dark svg text { fill: #a1a1aa !important; }
