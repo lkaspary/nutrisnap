@@ -1620,6 +1620,22 @@ export default function TrackerPage() {
         <OnboardingFlow profile={profile} onComplete={handleOnboardingComplete} />
       )}
 
+      {/* TEMP DEBUG — remove after fix */}
+      <div id="theme-debug" className="text-xs text-center py-1 mb-2 rounded-lg bg-yellow-100 text-yellow-800">
+        Loading theme info...
+      </div>
+      <script dangerouslySetInnerHTML={{__html: `
+        (function() {
+          var el = document.getElementById('theme-debug');
+          if (el) {
+            var theme = localStorage.getItem('caloriq-theme');
+            var hasDark = document.documentElement.classList.contains('dark');
+            el.textContent = 'localStorage: ' + theme + ' | dark class: ' + hasDark;
+            el.style.background = hasDark ? '#fee2e2' : '#dcfce7';
+          }
+        })();
+      `}} />
+
       {/* Pro upgrade success banner */}
       {justUpgraded && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4 mb-4 flex items-center gap-3">
