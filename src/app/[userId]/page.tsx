@@ -167,6 +167,7 @@ function WeeklyCard({
           ) : null}
         </div>
       )}
+
     </div>
   );
 }
@@ -1089,7 +1090,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 }
 
 // ── DayLoggedButton ───────────────────────────────────────────────────────────
-function DayLoggedButton({ confirmed, onToggle }: { confirmed: boolean; onToggle: () => void }) {
+function DayLoggedButton({ confirmed, onToggle, isToday = true }: { confirmed: boolean; onToggle: () => void; isToday?: boolean }) {
   return (
     <button onClick={onToggle}
       className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 transition-all mt-4"
@@ -1100,9 +1101,39 @@ function DayLoggedButton({ confirmed, onToggle }: { confirmed: boolean; onToggle
       }}>
       <span className="text-lg">{confirmed ? "✅" : "☑️"}</span>
       <span className="text-sm font-semibold">
-        {confirmed ? "Day logged — all meals recorded!" : "Confirm I've logged everything today"}
+        {confirmed
+          ? "Day logged — all meals recorded!"
+          : isToday
+            ? "Confirm I've logged everything today"
+            : "Mark this day as fully logged"}
       </span>
     </button>
+  );
+}
+
+// ── MacroRatioBar ─────────────────────────────────────────────────────────────
+function MacroRatioBar({ protein, carbs, fat }: { protein: number; carbs: number; fat: number }) {
+  const proteinCal = protein * 4;
+  const carbsCal   = carbs * 4;
+  const fatCal     = fat * 9;
+  const total = proteinCal + carbsCal + fatCal;
+  if (total === 0) return null;
+  const pPct = Math.round((proteinCal / total) * 100);
+  const cPct = Math.round((carbsCal   / total) * 100);
+  const fPct = 100 - pPct - cPct;
+  return (
+    <div className="mt-3 w-full">
+      <div className="flex rounded-full overflow-hidden h-2 gap-px">
+        <div style={{ width: `${pPct}%` }} className="bg-blue-400 dark:bg-blue-500 transition-all duration-500" />
+        <div style={{ width: `${cPct}%` }} className="bg-amber-400 dark:bg-amber-500 transition-all duration-500" />
+        <div style={{ width: `${fPct}%` }} className="bg-rose-400 dark:bg-rose-500 transition-all duration-500" />
+      </div>
+      <div className="flex justify-between text-[10px] mt-1.5 text-gray-400 dark:text-gray-500 font-medium">
+        <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-blue-400 mr-1 align-middle" />Protein {pPct}%</span>
+        <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 mr-1 align-middle" />Carbs {cPct}%</span>
+        <span><span className="inline-block w-1.5 h-1.5 rounded-full bg-rose-400 mr-1 align-middle" />Fat {fPct}%</span>
+      </div>
+    </div>
   );
 }
 
@@ -1144,6 +1175,10 @@ export default function TrackerPage() {
   const [pendingMealType, setPendingMealType] = useState<MealType>(() => suggestMealType(new Date()));
   const [dayConfirmed, setDayConfirmed] = useState(false);
   const [waterGlasses, setWaterGlasses] = useState(0);       // #22
+  // #47 — Calorie rollover
+  const [rolloverEnabled, setRolloverEnabled] = useState(false);
+  const [rolloverCalories, setRolloverCalories] = useState(0);
+  const [showRolloverPrompt, setShowRolloverPrompt] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
   const [insightsText, setInsightsText] = useState("");
   const [insightsLoading, setInsightsLoading] = useState(false);
@@ -1158,6 +1193,9 @@ export default function TrackerPage() {
   useEffect(() => {
     const stored = localStorage.getItem(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
+    // #47 — load rollover setting
+    const rv = localStorage.getItem(`caloriq-rollover-${userId}`);
+    setRolloverEnabled(rv === "true");
     // #34 — Apply saved theme on load (also done in layout.tsx head script for flash prevention)
     const savedTheme = localStorage.getItem("caloriq-theme");
     if (savedTheme === "dark") {
@@ -1243,6 +1281,17 @@ export default function TrackerPage() {
   }) ?? DAILY_GOAL, [profile]);
   const proteinGoal = useMemo(() => calcProteinGoal(profile?.weight_kg ?? null), [profile]);
 
+  // #47 — compute yesterday's deficit as rollover bonus (capped at 20% of goal)
+  useEffect(() => {
+    if (!rolloverEnabled) { setRolloverCalories(0); return; }
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yd = yesterday.toISOString().slice(0, 10);
+    const yTotal = sumMacros(meals.filter(m => m.meal_date === yd)).calories;
+    const deficit = Math.max(0, calorieGoal - yTotal);
+    setRolloverCalories(Math.min(deficit, Math.round(calorieGoal * 0.2)));
+  }, [rolloverEnabled, meals, calorieGoal]);
+
   // ── Streak counter ────────────────────────────────────────────────────────
   const streak = useMemo(() => {
     const loggedDates = new Set([
@@ -1285,7 +1334,11 @@ export default function TrackerPage() {
     }
     setPreview(null); setPendingFile(null); setTextInput("");
     setClar(null); setPendingB64(null); setPendingMime(null);
-    // After logging, show today tab (or history if back-dated)
+    // #47 — show rollover prompt once ever
+    if (!localStorage.getItem("caloriq-rollover-asked")) {
+      setShowRolloverPrompt(true);
+      localStorage.setItem("caloriq-rollover-asked", "true");
+    }
     setTab(mealDate === today ? "today" : "history");
   }, [userId, today, pendingMealType, pendingMealTime]);
 
@@ -1574,7 +1627,8 @@ export default function TrackerPage() {
   };
 
   const startAnalysis = async () => {
-    setLoading(true); setError(""); setClar(null);
+    // FIX #51 — fully reset before each attempt so error/clarification state never loops
+    setLoading(true); setError(""); setClar(null); setPendingB64(null); setPendingMime(null);
     try {
       let b64: string | null = null, mime: string | null = null;
       if (inputMode !== "text" && pendingFile) {
@@ -1699,6 +1753,10 @@ export default function TrackerPage() {
                 style={{ width: `${Math.min((totals.protein / proteinGoal) * 100, 100)}%`, background: "var(--prot)" }} />
             </div>
             <p className="text-xs text-gray-400 mt-1">{totals.protein}g / {proteinGoal}g protein</p>
+            <MacroRatioBar protein={totals.protein} carbs={totals.carbs} fat={totals.fat} />
+            {rolloverCalories > 0 && (
+              <p className="text-[10px] text-emerald-500 mt-1.5">+{rolloverCalories} kcal rolled over from yesterday</p>
+            )}
             <div className="mt-2 flex items-center justify-between">
               <div className="flex items-center gap-1">
                 <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
@@ -1826,14 +1884,15 @@ export default function TrackerPage() {
           <div className="flex gap-2 mb-4">
             {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
               <button key={key} onClick={() => { setInputMode(key); setPreview(null); setPendingFile(null); setClar(null); setError(""); }}
-                className="flex-1 py-2 px-1 text-xs rounded-xl border transition-colors"
+                className="flex-1 py-2 px-1 text-xs rounded-xl border transition-colors dark:border-zinc-600"
                 style={{
-                  background: inputMode === key ? "#ede9ff" : "#ffffff",
+                  background: inputMode === key ? "#ede9ff" : "transparent",
                   fontWeight: inputMode === key ? 600 : 400,
-                  borderColor: inputMode === key ? "#7F77DD" : "#e5e7eb",
+                  borderColor: inputMode === key ? "#7F77DD" : undefined,
                   color: inputMode === key ? "#4f46e5" : "#6b7280",
                 }}>
-                <div className="text-base mb-0.5">{cfg.icon}</div>{cfg.label}
+                <div className="text-base mb-0.5">{cfg.icon}</div>
+                <span className={inputMode === key ? "text-indigo-600 dark:text-indigo-400" : ""}>{cfg.label}</span>
               </button>
             ))}
           </div>
@@ -1954,6 +2013,18 @@ export default function TrackerPage() {
               ? <div className="text-center py-10 text-gray-400 text-sm">No history yet.</div>
               : Object.entries(grouped).sort((a, b) => b[0].localeCompare(a[0])).map(([date, dayMeals]) => {
                   const dt = sumMacros(dayMeals);
+                  // #61 — per-date confirmed state
+                  const isDateToday = date === today;
+                  const dateConfirmed = isDateToday
+                    ? dayConfirmed
+                    : localStorage.getItem(`dayConfirmed:${userId}:${date}`) === "true";
+                  const toggleDateConfirmed = () => {
+                    if (isDateToday) { toggleDayConfirmed(); return; }
+                    const cur = localStorage.getItem(`dayConfirmed:${userId}:${date}`);
+                    if (cur === "true") localStorage.removeItem(`dayConfirmed:${userId}:${date}`);
+                    else localStorage.setItem(`dayConfirmed:${userId}:${date}`, "true");
+                    setMeals(prev => [...prev]); // force re-render
+                  };
                   return (
                     <div key={date} className="mb-5">
                       <div className="flex justify-between items-center mb-2">
@@ -1964,6 +2035,7 @@ export default function TrackerPage() {
                         </p>
                       </div>
                       {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} />)}
+                      <DayLoggedButton confirmed={dateConfirmed} onToggle={toggleDateConfirmed} isToday={isDateToday} />
                     </div>
                   );
                 })}
@@ -2134,6 +2206,16 @@ export default function TrackerPage() {
           <button onClick={toggleDark} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             {isDark ? "☀️ Light mode" : "🌙 Dark mode"}
           </button>
+          {/* #47 — Rollover toggle */}
+          <button onClick={() => {
+            const next = !rolloverEnabled;
+            setRolloverEnabled(next);
+            localStorage.setItem(`caloriq-rollover-${userId}`, String(next));
+          }} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            {rolloverEnabled ? "🔄 Rollover: on" : "🔄 Rollover: off"}
+          </button>
+          {/* About link */}
+          <a href="/about" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">About</a>
         </div>
         {profile?.is_pro && (
           <div className="mt-6 pt-4 border-t border-gray-100 dark:border-zinc-800">
@@ -2252,6 +2334,30 @@ export default function TrackerPage() {
         );
       })()}
 
+      {/* #47 — Rollover prompt modal */}
+      {showRolloverPrompt && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Calorie rollover 🔄</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+              If you finish a day under your calorie goal, would you like to carry up to 20% of unused calories into the next day?
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => {
+                localStorage.setItem(`caloriq-rollover-${userId}`, "true");
+                setRolloverEnabled(true);
+                setShowRolloverPrompt(false);
+              }} className="flex-1 bg-emerald-500 text-white rounded-xl py-3 text-sm font-medium">
+                Yes, roll it over
+              </button>
+              <button onClick={() => setShowRolloverPrompt(false)}
+                className="flex-1 bg-gray-100 dark:bg-zinc-800 text-gray-700 dark:text-gray-300 rounded-xl py-3 text-sm font-medium">
+                No thanks
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
