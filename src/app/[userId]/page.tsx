@@ -942,19 +942,27 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 // ── MealCard ──────────────────────────────────────────────────────────────────
-function MealCard({ meal: m, onDelete, onUpdate }: {
+function MealCard({ meal: m, onDelete, onUpdate, profileId }: {
   meal: Meal;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Meal>) => void;
+  profileId: string;
 }) {
   const [editing, setEditing] = useState(false);
-  // #60 — use notes as description if present (we store description there), else just name
   const originalDesc = m.notes?.trim() || m.name;
   const [editDescription, setEditDescription] = useState(originalDesc);
   const [editType, setEditType] = useState<MealType>(m.meal_type);
   const [editTime, setEditTime] = useState<Date>(() => new Date(m.meal_time || m.logged_at));
-  const [editDate, setEditDate] = useState<string>(() => (m.meal_time || m.logged_at).split("T")[0]); // #39
+  const [editDate, setEditDate] = useState<string>(() => (m.meal_time || m.logged_at).split("T")[0]);
   const [saving, setSaving] = useState(false);
+
+  // #60 — sync state when meal prop updates after a save
+  useEffect(() => {
+    setEditDescription(m.notes?.trim() || m.name);
+    setEditType(m.meal_type);
+    setEditTime(new Date(m.meal_time || m.logged_at));
+    setEditDate((m.meal_time || m.logged_at).split("T")[0]);
+  }, [m.id, m.notes, m.name, m.meal_type, m.meal_time, m.logged_at]);
 
   const time = new Date(m.meal_time || m.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   const typeInfo = MEAL_TYPES.find(t => t.key === m.meal_type);
@@ -966,8 +974,8 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
     mergedTime.setFullYear(ey, em - 1, ed);
     const mergedIso = mergedTime.toISOString();
     try {
-      // #60 — re-analyze whenever the description differs from what was stored
-      const descChanged = editDescription.trim() !== originalDesc.trim();
+      const currentDesc = m.notes?.trim() || m.name;
+      const descChanged = editDescription.trim() !== currentDesc.trim();
       if (descChanged && editDescription.trim()) {
         const res = await fetch("/api/analyze", {
           method: "POST",
@@ -975,6 +983,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           body: JSON.stringify({
             mode: "text", text: editDescription.trim(),
             base64: null, mimeType: null, clarification: null,
+            profileId: profileId,
           }),
         }).then(r => r.json());
         if (!res.error) {
@@ -1081,7 +1090,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
               className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-              {saving ? (editDescription.trim() !== originalDesc.trim() ? "Re-analyzing…" : "Saving…") : "Save changes"}
+              {saving ? (editDescription.trim() !== (m.notes?.trim() || m.name) ? "Re-analyzing…" : "Saving…") : "Save changes"}
             </button>
           </div>
         </div>
@@ -1872,7 +1881,7 @@ export default function TrackerPage() {
                 No meals today.{" "}
                 <button onClick={() => setTab("add")} className="text-blue-400">Add one →</button>
               </div>
-            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} />)}
+            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} profileId={userId} />)}
           {todayMeals.length > 0 && (
             <DayLoggedButton confirmed={dayConfirmed} onToggle={toggleDayConfirmed} />
           )}
@@ -2036,7 +2045,7 @@ export default function TrackerPage() {
                           P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> · C: {dt.carbs}g · F: {dt.fat}g
                         </p>
                       </div>
-                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} />)}
+                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} profileId={userId} />)}
                       <DayLoggedButton confirmed={dateConfirmed} onToggle={toggleDateConfirmed} isToday={isDateToday} />
                     </div>
                   );
