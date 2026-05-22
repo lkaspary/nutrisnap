@@ -948,7 +948,9 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
   onUpdate: (id: string, updates: Partial<Meal>) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [editDescription, setEditDescription] = useState(m.name); // #60 — just the name; user edits to re-analyze
+  // #60 — use notes as description if present (we store description there), else just name
+  const originalDesc = m.notes?.trim() || m.name;
+  const [editDescription, setEditDescription] = useState(originalDesc);
   const [editType, setEditType] = useState<MealType>(m.meal_type);
   const [editTime, setEditTime] = useState<Date>(() => new Date(m.meal_time || m.logged_at));
   const [editDate, setEditDate] = useState<string>(() => (m.meal_time || m.logged_at).split("T")[0]); // #39
@@ -964,8 +966,8 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
     mergedTime.setFullYear(ey, em - 1, ed);
     const mergedIso = mergedTime.toISOString();
     try {
-      // #60 — re-analyze whenever the description differs from the original meal name
-      const descChanged = editDescription.trim() !== m.name.trim();
+      // #60 — re-analyze whenever the description differs from what was stored
+      const descChanged = editDescription.trim() !== originalDesc.trim();
       if (descChanged && editDescription.trim()) {
         const res = await fetch("/api/analyze", {
           method: "POST",
@@ -1079,7 +1081,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
               className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-              {saving ? (editDescription.trim() !== m.name.trim() ? "Re-analyzing…" : "Saving…") : "Save changes"}
+              {saving ? (editDescription.trim() !== originalDesc.trim() ? "Re-analyzing…" : "Saving…") : "Save changes"}
             </button>
           </div>
         </div>
@@ -1349,6 +1351,7 @@ export default function TrackerPage() {
   const handleUpdateMeal = useCallback(async (id: string, updates: Partial<Meal>) => {
     const updated = await updateMeal(id, updates);
     setMeals(prev => prev.map(m => m.id === id ? updated : m));
+    setHistoryMeals(prev => prev.map(m => m.id === id ? updated : m));
   }, []);
 
   // #33 — Onboarding complete
