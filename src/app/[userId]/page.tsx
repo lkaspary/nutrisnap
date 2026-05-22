@@ -465,7 +465,7 @@ function MealTimeEditor({
           <button key={iso} onClick={() => handleDateChange(iso)}
             className="flex-shrink-0 text-xs px-3 py-1.5 rounded-full border transition-all whitespace-nowrap"
             style={{
-              background: selectedDate === iso ? "#111" : "#ffffff",
+              background: selectedDate === iso ? "#111" : "transparent",
               borderColor: selectedDate === iso ? "#111" : "#d1d5db",
               color: selectedDate === iso ? "#fff" : "#4b5563",
               fontWeight: selectedDate === iso ? 600 : 400,
@@ -480,7 +480,7 @@ function MealTimeEditor({
             <button key={key} onClick={() => onTypeChange(key)}
               className="flex flex-col items-center py-2 rounded-xl border text-xs transition-all"
               style={{
-                background: active ? MEAL_TYPE_COLORS[key] + "18" : "#ffffff",
+                background: active ? MEAL_TYPE_COLORS[key] + "18" : "transparent",
                 borderColor: active ? MEAL_TYPE_COLORS[key] : "#d1d5db",
                 color: active ? MEAL_TYPE_COLORS[key] : "#4b5563",
                 fontWeight: active ? 600 : 400,
@@ -1855,7 +1855,7 @@ export default function TrackerPage() {
           {([["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
             <button key={t} onClick={() => setTab(t)}
               className="flex-1 py-2 text-xs rounded-xl transition-all"
-              style={{ background: tab === t ? "#ffffff" : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? "#111" : "#6b7280" }}>
+              style={{ background: tab === t ? (isDark ? "#3f3f46" : "#ffffff") : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? (isDark ? "#f4f4f5" : "#111") : "#6b7280" }}>
               {l}
             </button>
           ))}
@@ -2195,7 +2195,7 @@ export default function TrackerPage() {
       )}
       {/* Footer */}
       <div className="mt-6 mb-4 space-y-2">
-        <div className="flex items-center justify-center gap-4 flex-wrap">
+        <div className="flex items-center justify-center gap-6 flex-wrap">
           <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             ⚖️ My stats
@@ -2215,7 +2215,7 @@ export default function TrackerPage() {
             {rolloverEnabled ? "🔄 Rollover: on" : "🔄 Rollover: off"}
           </button>
           {/* About link */}
-          <a href="/about" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">About</a>
+          <a href="/about" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">💡 About</a>
         </div>
         {profile?.is_pro && (
           <div className="mt-6 pt-4 border-t border-gray-100 dark:border-zinc-800">
