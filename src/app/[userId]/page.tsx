@@ -948,8 +948,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
   onUpdate: (id: string, updates: Partial<Meal>) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [editNotes, setEditNotes] = useState(m.notes ?? "");
-  const [editDescription, setEditDescription] = useState(m.name + (m.notes ? ` — ${m.notes}` : "")); // #37
+  const [editDescription, setEditDescription] = useState(m.name); // #60 — just the name; user edits to re-analyze
   const [editType, setEditType] = useState<MealType>(m.meal_type);
   const [editTime, setEditTime] = useState<Date>(() => new Date(m.meal_time || m.logged_at));
   const [editDate, setEditDate] = useState<string>(() => (m.meal_time || m.logged_at).split("T")[0]); // #39
@@ -960,14 +959,14 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
 
   const handleSave = async () => {
     setSaving(true);
-    // #39 — build a merged datetime from the edited date + time
     const mergedTime = new Date(editTime);
     const [ey, em, ed] = editDate.split("-").map(Number);
     mergedTime.setFullYear(ey, em - 1, ed);
     const mergedIso = mergedTime.toISOString();
     try {
-      const descChanged = editDescription.trim() !== (m.name + (m.notes ? ` — ${m.notes}` : ""));
-      if (descChanged) {
+      // #60 — re-analyze whenever the description differs from the original meal name
+      const descChanged = editDescription.trim() !== m.name.trim();
+      if (descChanged && editDescription.trim()) {
         const res = await fetch("/api/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -980,7 +979,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
           onUpdate(m.id, {
             calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
             serving_size: res.serving_size ?? m.serving_size,
-            name: res.name ?? m.name,
+            name: res.name ?? editDescription.trim(),
             notes: editDescription.trim(), meal_type: editType, meal_time: mergedIso, meal_date: editDate,
           });
         } else {
@@ -1080,7 +1079,7 @@ function MealCard({ meal: m, onDelete, onUpdate }: {
               className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm text-gray-400">Cancel</button>
             <button onClick={handleSave} disabled={saving}
               className="flex-[2] bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-600 rounded-xl py-2 text-sm font-medium disabled:opacity-40">
-              {saving ? (editDescription.trim() !== (m.name + (m.notes ? ` — ${m.notes}` : "")) ? "Re-analyzing…" : "Saving…") : "Save changes"}
+              {saving ? (editDescription.trim() !== m.name.trim() ? "Re-analyzing…" : "Saving…") : "Save changes"}
             </button>
           </div>
         </div>
