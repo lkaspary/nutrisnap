@@ -942,11 +942,12 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 }
 
 // ── MealCard ──────────────────────────────────────────────────────────────────
-function MealCard({ meal: m, onDelete, onUpdate, profileId }: {
+function MealCard({ meal: m, onDelete, onUpdate, profileId, onFlag }: {
   meal: Meal;
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<Meal>) => void;
   profileId: string;
+  onFlag: (meal: Meal) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const originalDesc = m.notes?.trim() || m.name;
@@ -1031,7 +1032,8 @@ function MealCard({ meal: m, onDelete, onUpdate, profileId }: {
         <div className="flex flex-col items-end gap-1 flex-shrink-0">
           <p className="text-sm font-semibold" style={{ color: "var(--cal)" }}>{m.calories} kcal</p>
           <div className="flex gap-2">
-            <button onClick={() => setEditing(e => !e)} className="text-xs text-gray-300 hover:text-blue-400 transition-colors">✏️</button>
+            <button onClick={() => { setEditing(e => !e) }} className="text-xs text-gray-300 hover:text-blue-400 transition-colors">✏️</button>
+            <button onClick={() => onFlag(m)} className="text-xs text-gray-300 hover:text-amber-400 transition-colors" title="Calories seem off?">🚩</button>
             <button onClick={() => onDelete(m.id)} className="text-xs text-gray-300 hover:text-red-400 transition-colors">✕</button>
           </div>
         </div>
@@ -1172,8 +1174,18 @@ export default function TrackerPage() {
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [historyMeals, setHistoryMeals] = useState<Meal[]>([]);
   const [showBodyStats, setShowBodyStats] = useState(false);
-  const [bodyStats, setBodyStats] = useState({ weight_kg: "", height_cm: "", age: "", gender: "" });
+  const [bodyStats, setBodyStats] = useState({ weight_kg: "", height_cm: "", age: "", gender: "", activity_level: "", goal_type: "" });
   const [savingStats, setSavingStats] = useState(false);
+  // #62 — forgot to log nudge
+  const [showForgotNudge, setShowForgotNudge] = useState(false);
+  // #28 — meal calorie feedback
+  const [feedbackMeal, setFeedbackMeal] = useState<Meal | null>(null);
+  const [mealFeedbackText, setMealFeedbackText] = useState("");
+  const [mealFeedbackSaving, setMealFeedbackSaving] = useState(false);
+  // #18 — diet report
+  const [showDietReport, setShowDietReport] = useState(false);
+  const [dietReportText, setDietReportText] = useState("");
+  const [dietReportLoading, setDietReportLoading] = useState(false);
   const [useImperial, setUseImperial] = useState(false);
   const [usageCount, setUsageCount] = useState(0);
   const [showAnalytics, setShowAnalytics] = useState(false);
@@ -1302,7 +1314,17 @@ export default function TrackerPage() {
     setRolloverCalories(Math.min(deficit, Math.round(calorieGoal * 0.2)));
   }, [rolloverEnabled, meals, calorieGoal]);
 
-  // ── Streak counter ────────────────────────────────────────────────────────
+  // #62 — show "did you forget to log?" nudge if breakfast logged but nothing after 7pm
+  useEffect(() => {
+    if (todayMeals.length === 0) return;
+    const hour = new Date().getHours();
+    if (hour < 19) return; // only after 7pm
+    const lastMealTime = Math.max(...todayMeals.map(m => new Date(m.meal_time || m.logged_at).getTime()));
+    const hoursSinceLast = (Date.now() - lastMealTime) / 3_600_000;
+    if (hoursSinceLast >= 4 && !localStorage.getItem(`nudge:${userId}:${today}`)) {
+      setShowForgotNudge(true);
+    }
+  }, [todayMeals, userId, today]);
   const streak = useMemo(() => {
     const loggedDates = new Set([
       ...historyMeals.map(m => m.meal_date),
@@ -1443,6 +1465,71 @@ export default function TrackerPage() {
     }
   };
 
+  // #18 — Diet analysis report
+  const fetchDietReport = async () => {
+    setDietReportLoading(true);
+    setShowDietReport(true);
+    setDietReportText("");
+    try {
+      const last7 = getLast7Days();
+      const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
+      const mealSummary = last7.map(date => {
+        const dayMeals = weekMeals.filter(m => m.meal_date === date);
+        if (dayMeals.length === 0) return `${date}: no meals logged`;
+        const t = sumMacros(dayMeals);
+        return `${date}: ${t.calories} kcal, P:${t.protein}g C:${t.carbs}g F:${t.fat}g (${dayMeals.map(m => m.name).join(", ")})`;
+      }).join("\n");
+      const statsStr = profile
+        ? `Goal: ${profile.goal_type ?? "maintain"}. Activity: ${profile.activity_level ?? "moderate"}. ${profile.gender ?? ""} ${profile.age ?? ""}yo, ${profile.weight_kg ?? "?"}kg, ${profile.height_cm ?? "?"}cm. Calorie goal: ${calorieGoal} kcal/day. Protein goal: ${proteinGoal}g/day.`
+        : "No body stats available.";
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "insights",
+          text: `${statsStr}\n\nLast 7 days:\n${mealSummary}\n\nWrite a structured diet analysis report with these sections:\n1. 📊 Weekly summary (calories vs goal, protein, patterns)\n2. ✅ What's working well\n3. ⚠️ Areas to improve\n4. 🎯 3 specific actionable recommendations for this person's goal (${profile?.goal_type ?? "maintain"})\n\nBe specific, data-driven, and encouraging. 150-200 words max.`,
+          base64: null, mimeType: null, clarification: null, profileId: userId,
+        }),
+      }).then(r => r.json());
+      setDietReportText(res.insights ?? res.error ?? "Couldn't generate report right now.");
+    } catch {
+      setDietReportText("Couldn't generate report right now. Try again later.");
+    } finally {
+      setDietReportLoading(false);
+    }
+  };
+
+  // #28 — Re-analyze meal with user feedback
+  const handleMealFeedback = async () => {
+    if (!feedbackMeal || !mealFeedbackText.trim()) return;
+    setMealFeedbackSaving(true);
+    try {
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: "text",
+          text: `${feedbackMeal.name}. User correction: ${mealFeedbackText.trim()}`,
+          base64: null, mimeType: null, clarification: null, profileId: userId,
+        }),
+      }).then(r => r.json());
+      if (!res.error) {
+        await handleUpdateMeal(feedbackMeal.id, {
+          calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
+          serving_size: res.serving_size ?? feedbackMeal.serving_size,
+          name: res.name ?? feedbackMeal.name,
+          notes: `${feedbackMeal.name} — corrected: ${mealFeedbackText.trim()}`,
+        });
+      }
+      setFeedbackMeal(null);
+      setMealFeedbackText("");
+    } catch {
+      setFeedbackMeal(null);
+    } finally {
+      setMealFeedbackSaving(false);
+    }
+  };
+
   const handleSignOut = async () => {
     const { supabase: sb } = await import("@/lib/supabase");
     await sb.auth.signOut();
@@ -1516,12 +1603,20 @@ export default function TrackerPage() {
         age: bodyStats.age ? parseInt(bodyStats.age) : null,
         gender: (bodyStats.gender as "male" | "female" | "other") || null,
       });
+      // Save activity_level and goal_type via supabase directly
+      const { supabase: sb } = await import("@/lib/supabase");
+      await sb.from("profiles").update({
+        activity_level: bodyStats.activity_level || null,
+        goal_type: bodyStats.goal_type || null,
+      }).eq("id", userId);
       setProfile(p => p ? {
         ...p,
         weight_kg: bodyStats.weight_kg ? parseFloat(bodyStats.weight_kg) : null,
         height_cm: bodyStats.height_cm ? parseFloat(bodyStats.height_cm) : null,
         age: bodyStats.age ? parseInt(bodyStats.age) : null,
         gender: (bodyStats.gender as "male" | "female" | "other") || null,
+        activity_level: (bodyStats.activity_level as ActivityLevel) || null,
+        goal_type: (bodyStats.goal_type as GoalType) || null,
       } : p);
       setShowBodyStats(false);
     } finally {
@@ -1814,10 +1909,16 @@ export default function TrackerPage() {
         </div>
 
         {/* #25 — Weekly insights button */}
-        <button onClick={() => fetchInsights()}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-          <span>🧠</span> {insightsFetchedFor === today ? "View weekly insights" : "Get weekly insights"}
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => fetchInsights()}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            <span>🧠</span> {insightsFetchedFor === today ? "View weekly insights" : "Get weekly insights"}
+          </button>
+          <button onClick={fetchDietReport}
+            className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+            <span>📋</span> Diet report
+          </button>
+        </div>
       </div>
 
       {/* #25 — Persistent weekly card (Option D) — always visible, expands to AI analysis */}
@@ -1881,7 +1982,7 @@ export default function TrackerPage() {
                 No meals today.{" "}
                 <button onClick={() => setTab("add")} className="text-blue-400">Add one →</button>
               </div>
-            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} profileId={userId} />)}
+            : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} profileId={userId} onFlag={m => { setFeedbackMeal(m); setMealFeedbackText(""); }} />)}
           {todayMeals.length > 0 && (
             <DayLoggedButton confirmed={dayConfirmed} onToggle={toggleDayConfirmed} />
           )}
@@ -2045,7 +2146,7 @@ export default function TrackerPage() {
                           P: <span style={{ color: "var(--prot)" }}>{dt.protein}g</span> · C: {dt.carbs}g · F: {dt.fat}g
                         </p>
                       </div>
-                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} profileId={userId} />)}
+                      {dayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} profileId={userId} onFlag={m => { setFeedbackMeal(m); setMealFeedbackText(""); }} />)}
                       <DayLoggedButton confirmed={dateConfirmed} onToggle={toggleDateConfirmed} isToday={isDateToday} />
                     </div>
                   );
@@ -2207,7 +2308,7 @@ export default function TrackerPage() {
       {/* Footer */}
       <div className="mt-6 mb-4 space-y-2">
         <div className="flex items-center justify-center gap-6 flex-wrap">
-          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "" }); setShowBodyStats(true); }}
+          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "", activity_level: profile?.activity_level ?? "", goal_type: profile?.goal_type ?? "" }); setShowBodyStats(true); }}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             ⚖️ My stats
           </button>
@@ -2331,6 +2432,30 @@ export default function TrackerPage() {
                     </select>
                   </div>
                 </div>
+                {/* #63 — Activity level and goal */}
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">Activity level</label>
+                    <select value={bodyStats.activity_level} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, activity_level: e.target.value}))}
+                      className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none">
+                      <option value="">Select</option>
+                      <option value="sedentary">🪑 Sedentary</option>
+                      <option value="light">🚶 Light</option>
+                      <option value="moderate">🏃 Moderate</option>
+                      <option value="active">💪 Active</option>
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">My goal</label>
+                    <select value={bodyStats.goal_type} onChange={e => setBodyStats((s: typeof bodyStats) => ({...s, goal_type: e.target.value}))}
+                      className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none">
+                      <option value="">Select</option>
+                      <option value="lose">📉 Lose weight</option>
+                      <option value="maintain">⚖️ Maintain</option>
+                      <option value="gain">📈 Build muscle</option>
+                    </select>
+                  </div>
+                </div>
               </div>
               <div className="flex gap-2 mt-4">
                 <button onClick={() => setShowBodyStats(false)}
@@ -2344,6 +2469,84 @@ export default function TrackerPage() {
           </div>
         );
       })()}
+
+      {/* #62 — Forgot to log nudge */}
+      {showForgotNudge && (
+        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-md mx-auto">
+          <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3">
+            <span className="text-xl flex-shrink-0">🍽️</span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-800 dark:text-white">Did you forget to log?</p>
+              <p className="text-xs text-gray-400">Looks like you haven't logged anything in a while.</p>
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={() => { setTab("add"); setShowForgotNudge(false); localStorage.setItem(`nudge:${userId}:${today}`, "1"); }}
+                className="text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-xl font-medium">Log now</button>
+              <button onClick={() => { setShowForgotNudge(false); localStorage.setItem(`nudge:${userId}:${today}`, "1"); }}
+                className="text-xs text-gray-400 px-2 py-1.5">✕</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* #28 — Meal calorie feedback modal */}
+      {feedbackMeal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-5 w-full max-w-sm shadow-xl">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">Calories seem off? 🚩</p>
+              <button onClick={() => setFeedbackMeal(null)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <p className="text-xs text-gray-400 mb-1">Original: <span className="font-medium text-gray-600 dark:text-gray-300">{feedbackMeal.name}</span> — {feedbackMeal.calories} kcal</p>
+            <p className="text-xs text-gray-400 mb-3">Tell us what was different and we'll re-analyze:</p>
+            <textarea
+              value={mealFeedbackText}
+              onChange={e => setMealFeedbackText(e.target.value)}
+              placeholder="e.g. 'It was a double portion' or 'No butter was used' or 'It was a small serving'"
+              rows={3}
+              className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2 text-sm bg-transparent outline-none focus:border-indigo-400 resize-none mb-3"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setFeedbackMeal(null)}
+                className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+              <button onClick={handleMealFeedback} disabled={mealFeedbackSaving || !mealFeedbackText.trim()}
+                className="flex-[2] bg-indigo-500 text-white rounded-xl py-2.5 text-sm font-medium disabled:opacity-40">
+                {mealFeedbackSaving ? "Re-analyzing…" : "Re-analyze ✨"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* #18 — Diet analysis report modal */}
+      {showDietReport && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100 dark:border-zinc-800">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">📋 My diet report</p>
+              <button onClick={() => setShowDietReport(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="px-5 py-4 max-h-96 overflow-y-auto">
+              {dietReportLoading ? (
+                <div className="flex flex-col items-center gap-3 py-8 text-gray-400">
+                  <span className="text-3xl animate-pulse">📊</span>
+                  <p className="text-sm">Analyzing your week…</p>
+                </div>
+              ) : (
+                <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">{dietReportText}</p>
+              )}
+            </div>
+            {!dietReportLoading && (
+              <div className="px-5 pb-4">
+                <button onClick={fetchDietReport}
+                  className="w-full border border-gray-200 dark:border-zinc-700 rounded-xl py-2 text-xs text-gray-400 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                  🔄 Regenerate
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* #47 — Rollover prompt modal */}
       {showRolloverPrompt && (
