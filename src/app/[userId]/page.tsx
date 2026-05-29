@@ -96,7 +96,7 @@ function exportMealsCSV(meals: Meal[], profileName: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `nutrisnap-${profileName.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.csv`;
+  a.download = `calor-iq-${profileName.toLowerCase().replace(/\s+/g, "-")}-${new Date().toISOString().split("T")[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -2468,6 +2468,7 @@ export default function TrackerPage() {
             ⚖️ My stats
           </button>
           <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">🔒 Privacy</a>
+          <a href="/terms" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">📄 Terms</a>
           <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">👤 My account</a>
           {/* #34 — Dark mode toggle */}
           <button onClick={toggleDark} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
