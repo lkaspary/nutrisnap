@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     let customerId = profile?.stripe_customer_id;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        name: profile?.name ?? "NutriSnap User",
+        name: profile?.name ?? "Calor-IQ User",
         metadata: { profile_id: profileId },
       });
       customerId = customer.id;
