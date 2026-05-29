@@ -135,7 +135,8 @@ function WeeklyCard({
   const diffLabel = diff === 0 ? "on target" : diff > 0 ? `+${diff} over goal` : `${Math.abs(diff)} under goal`;
   const diffColor = Math.abs(diff) < 100 ? "#22C55E" : Math.abs(diff) < 300 ? "#F59E0B" : "#E24B4A";
 
-  if (daysLogged === 0) return null;
+  // Hide card entirely only if no meals logged at all this week
+  if (weekMeals.length === 0) return null;
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl mb-4 overflow-hidden">
@@ -150,7 +151,9 @@ function WeeklyCard({
             {isSunday ? "Weekly review ready" : "This week so far"}
           </p>
           <p className="text-xs text-gray-400 truncate">
-            Logged {daysLogged} full day{daysLogged !== 1 ? "s" : ""} this week · {daysLogged > 0 ? <>avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>{avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}{bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}</> : "log more meals for avg"}
+            {daysLogged > 0
+              ? <>Logged {daysLogged} full day{daysLogged !== 1 ? "s" : ""} this week · avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span><span style={{ color: diffColor }}> ({diffLabel})</span>{bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}</>
+              : "Confirm a day with ✅ to see your weekly average"}
           </p>
         </div>
         <span className="text-gray-300 text-xs flex-shrink-0">{showInsights ? "▲" : "▼"}</span>
@@ -1460,11 +1463,12 @@ export default function TrackerPage() {
     try {
       const last7 = getLast7Days();
       const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
-      // #42 — Only count days with ≥2 meals as fully logged for accurate averages
+      // Only include days the user confirmed as fully logged
       const mealSummary = last7.map(date => {
         const dayMeals = weekMeals.filter(m => m.meal_date === date);
+        const isConfirmed = confirmedDates.has(date);
         if (dayMeals.length === 0) return `${date}: no meals logged`;
-        if (dayMeals.length === 1) return `${date}: partially logged (${dayMeals[0].name}) — exclude from averages`;
+        if (!isConfirmed) return `${date}: partially logged — exclude from averages`;
         const t = sumMacros(dayMeals);
         return `${date}: ${t.calories} kcal, P:${t.protein}g C:${t.carbs}g F:${t.fat}g (${dayMeals.map(m => m.name).join(", ")})`;
       }).join("\n");
@@ -1504,9 +1508,12 @@ export default function TrackerPage() {
     try {
       const last7 = getLast7Days();
       const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
+      // Only include days the user confirmed as fully logged
       const mealSummary = last7.map(date => {
         const dayMeals = weekMeals.filter(m => m.meal_date === date);
+        const isConfirmed = confirmedDates.has(date);
         if (dayMeals.length === 0) return `${date}: no meals logged`;
+        if (!isConfirmed) return `${date}: partially logged — exclude from averages`;
         const t = sumMacros(dayMeals);
         return `${date}: ${t.calories} kcal, P:${t.protein}g C:${t.carbs}g F:${t.fat}g (${dayMeals.map(m => m.name).join(", ")})`;
       }).join("\n");
