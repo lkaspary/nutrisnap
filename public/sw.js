@@ -1,4 +1,4 @@
-const CACHE_NAME = 'caloriq-v3';
+const CACHE_NAME = 'caloriq-v4';
 const STATIC_ASSETS = [
   '/',
   '/icons/icon-192.png',
@@ -45,6 +45,65 @@ self.addEventListener('fetch', (event) => {
       if (event.request.mode === 'navigate') {
         return caches.match('/');
       }
+    })
+  );
+});
+
+// ── #46 — Daily logging reminder ──────────────────────────────────────────────
+let reminderTimer = null;
+let reminderConfig = null;
+
+self.addEventListener('message', (event) => {
+  const { type, time, title, body } = event.data || {};
+
+  if (type === 'SCHEDULE_DAILY_REMINDER') {
+    reminderConfig = { time, title, body };
+    scheduleNextReminder();
+  }
+
+  if (type === 'CANCEL_REMINDER') {
+    if (reminderTimer) clearTimeout(reminderTimer);
+    reminderTimer = null;
+    reminderConfig = null;
+  }
+});
+
+function scheduleNextReminder() {
+  if (!reminderConfig) return;
+  if (reminderTimer) clearTimeout(reminderTimer);
+
+  const [hours, minutes] = reminderConfig.time.split(':').map(Number);
+  const now = new Date();
+  const next = new Date();
+  next.setHours(hours, minutes, 0, 0);
+
+  // If the time has already passed today, schedule for tomorrow
+  if (next <= now) next.setDate(next.getDate() + 1);
+
+  const msUntil = next.getTime() - now.getTime();
+
+  reminderTimer = setTimeout(() => {
+    self.registration.showNotification(reminderConfig.title, {
+      body: reminderConfig.body,
+      icon: '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      tag: 'daily-logging-reminder',
+      renotify: true,
+    });
+    // Reschedule for the same time tomorrow
+    scheduleNextReminder();
+  }, msUntil);
+}
+
+// Open the app when the user taps the notification
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes('/') && 'focus' in client) return client.focus();
+      }
+      if (clients.openWindow) return clients.openWindow('/');
     })
   );
 });

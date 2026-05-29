@@ -194,7 +194,8 @@ ${hasText ? `User note: "${text}"${clarNote}` : clarNote}
 IMPORTANT: Return ONLY numbers you can actually see printed. Do NOT invent or estimate values you cannot read. If truly illegible, use 0.
 
 Respond with ONLY this JSON, nothing else:
-{"name":"brand and product name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"exact serving text from label","confidence":"high"}`;
+{"name":"brand and product name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"exact serving text from label","confidence":"high","fiber":N,"sodium":N,"vitamin_c":N,"vitamin_d":N,"iron":N,"calcium":N}
+Extended fields: fiber (g), sodium (mg), vitamin_c (mg), vitamin_d (mcg), iron (mg), calcium (mg) — read from label if present, otherwise 0.`;
     } else if (mode === "meal") {
       const textHint = hasText ? `\nThe user described the meal as: "${text}"` : "";
       prompt = `You are a nutrition expert estimating the nutritional content of a meal.
@@ -206,7 +207,8 @@ Instructions:
 - Always provide your best estimate
 - Use both photo and description together for best accuracy
 You MUST respond with ONLY this JSON:
-{"name":"descriptive meal name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"full meal","confidence":"medium"}`;
+{"name":"descriptive meal name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"full meal","confidence":"medium","fiber":N,"sodium":N,"vitamin_c":N,"vitamin_d":N,"iron":N,"calcium":N}
+All extended fields (fiber g, sodium mg, vitamin_c mg, vitamin_d mcg, iron mg, calcium mg) are required — use 0 if unknown.`;
     } else if (mode === "text") {
       const imageHint = hasImage ? "\nThe user also provided a photo for additional context." : "";
       prompt = `You are a nutrition expert estimating nutritional content.
@@ -216,7 +218,8 @@ Instructions:
 - If a brand or restaurant is mentioned, use their known data
 - Always provide a complete estimate
 You MUST respond with ONLY this JSON:
-{"name":"food name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"...","confidence":"medium"}`;
+{"name":"food name","calories":N,"protein":N,"carbs":N,"fat":N,"serving_size":"...","confidence":"medium","fiber":N,"sodium":N,"vitamin_c":N,"vitamin_d":N,"iron":N,"calcium":N}
+All extended fields (fiber g, sodium mg, vitamin_c mg, vitamin_d mcg, iron mg, calcium mg) are required — use 0 if unknown.`;
     } else {
       prompt = `You are a nutrition expert. Analyze this food and estimate its nutritional content.${clarNote}
 Always provide your best estimate. Never refuse.
@@ -249,7 +252,23 @@ You MUST respond with ONLY this JSON:
     const missing = required.filter(k => !(k in parsed));
     if (missing.length > 0) return NextResponse.json({ error: "Incomplete nutrition data." }, { status: 500 });
 
-    return NextResponse.json(parsed);
+    // Pass extended fields through if present (fiber, sodium, vitamins)
+    return NextResponse.json({
+      name: parsed.name,
+      calories: parsed.calories,
+      protein: parsed.protein,
+      carbs: parsed.carbs,
+      fat: parsed.fat,
+      serving_size: parsed.serving_size,
+      confidence: parsed.confidence,
+      source: parsed.source,
+      fiber: parsed.fiber ?? null,
+      sodium: parsed.sodium ?? null,
+      vitamin_c: parsed.vitamin_c ?? null,
+      vitamin_d: parsed.vitamin_d ?? null,
+      iron: parsed.iron ?? null,
+      calcium: parsed.calcium ?? null,
+    });
   } catch (e) {
     console.error("Analyze error:", e);
     return NextResponse.json({ error: e instanceof Error ? e.message : "Analysis failed." }, { status: 500 });

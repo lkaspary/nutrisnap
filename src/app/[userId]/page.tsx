@@ -111,19 +111,20 @@ function WeeklyCard({
 }) {
   const last7 = getLast7Days();
   const weekMeals = meals.filter(m => last7.includes(m.meal_date));
-  const daysLogged = new Set(weekMeals.map(m => m.meal_date)).size;
 
-  // #42 — Only count days with ≥2 meals as "full logged days" for averages
+  // Only days with ≥2 meals are "fully logged" — used for both count and averages
   const dailyTotals = last7.map(date => {
     const dayMeals = weekMeals.filter(m => m.meal_date === date);
     return { date, calories: sumMacros(dayMeals).calories, mealCount: dayMeals.length };
-  }).filter(d => d.mealCount >= 2); // full days only
+  }).filter(d => d.mealCount >= 2);
 
-  const avgCalories = dailyTotals.length
-    ? Math.round(dailyTotals.reduce((s, d) => s + d.calories, 0) / dailyTotals.length)
+  const daysLogged = dailyTotals.length; // full days only — never inflated by partial days
+
+  const avgCalories = daysLogged
+    ? Math.round(dailyTotals.reduce((s, d) => s + d.calories, 0) / daysLogged)
     : 0;
 
-  const bestDay = dailyTotals.length
+  const bestDay = daysLogged
     ? dailyTotals.reduce((best, d) =>
         Math.abs(d.calories - calorieGoal) < Math.abs(best.calories - calorieGoal) ? d : best
       )
@@ -148,7 +149,7 @@ function WeeklyCard({
             {isSunday ? "Weekly review ready" : "This week so far"}
           </p>
           <p className="text-xs text-gray-400 truncate">
-            {daysLogged}/7 days · {dailyTotals.length > 0 ? <>avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>{avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}{bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}</> : "log more meals for avg"}
+            Logged {daysLogged} full day{daysLogged !== 1 ? "s" : ""} this week · {daysLogged > 0 ? <>avg <span style={{ color: diffColor, fontWeight: 600 }}>{avgCalories} kcal</span>{avgCalories > 0 && <span style={{ color: diffColor }}> ({diffLabel})</span>}{bestDay && ` · best: ${new Date(bestDay.date + "T00:00:00").toLocaleDateString("en-US", { weekday: "short" })}`}</> : "log more meals for avg"}
           </p>
         </div>
         <span className="text-gray-300 text-xs flex-shrink-0">{showInsights ? "▲" : "▼"}</span>
@@ -1192,6 +1193,8 @@ export default function TrackerPage() {
   const [chartType, setChartType] = useState<ChartType>("calories");
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // #50 fix — holds image data synchronously so clarification buttons don't lose it
+  const pendingImageRef = useRef<{ b64: string; mime: string } | null>(null);
 
   const [pendingMealTime, setPendingMealTime] = useState<Date>(() => floorTo30(new Date()));
   const [pendingMealType, setPendingMealType] = useState<MealType>(() => suggestMealType(new Date()));
@@ -1210,6 +1213,10 @@ export default function TrackerPage() {
   const [isDark, setIsDark] = useState(false);
   // #24 — Share meal card
   const [showShareCard, setShowShareCard] = useState(false);
+  // #46 — Push notifications
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
+  const [showNotifSettings, setShowNotifSettings] = useState(false);
+  const [notifTime, setNotifTime] = useState("20:00"); // default 8pm
   const today = todayISO();
 
   useEffect(() => {
@@ -1265,6 +1272,15 @@ export default function TrackerPage() {
         .eq("date", today);
     }
   };
+
+  // #46 — load saved notification time and current permission on mount
+  useEffect(() => {
+    if (typeof Notification !== "undefined") {
+      setNotifPermission(Notification.permission);
+    }
+    const saved = localStorage.getItem(`caloriq-notif-time-${userId}`);
+    if (saved) setNotifTime(saved);
+  }, [userId]);
 
   useEffect(() => {
     getProfiles().then(profs => {
@@ -1530,6 +1546,36 @@ export default function TrackerPage() {
     }
   };
 
+  // #46 — Request notification permission and schedule daily reminder
+  const requestNotifPermission = async () => {
+    if (typeof Notification === "undefined") return;
+    const result = await Notification.requestPermission();
+    setNotifPermission(result);
+    return result;
+  };
+
+  const scheduleNotification = (time: string) => {
+    localStorage.setItem(`caloriq-notif-time-${userId}`, time);
+    setNotifTime(time);
+    // Register with service worker if available
+    if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: "SCHEDULE_DAILY_REMINDER",
+        time,
+        userId,
+        title: "Don't forget to log! 🍽️",
+        body: "Tap to log your meals and keep your streak going.",
+      });
+    }
+  };
+
+  const handleEnableNotifications = async () => {
+    const perm = await requestNotifPermission();
+    if (perm === "granted") {
+      scheduleNotification(notifTime);
+    }
+  };
+
   const handleSignOut = async () => {
     const { supabase: sb } = await import("@/lib/supabase");
     await sb.auth.signOut();
@@ -1735,11 +1781,15 @@ export default function TrackerPage() {
   const startAnalysis = async () => {
     // FIX #51 — fully reset before each attempt so error/clarification state never loops
     setLoading(true); setError(""); setClar(null); setPendingB64(null); setPendingMime(null);
+    pendingImageRef.current = null;
     try {
       let b64: string | null = null, mime: string | null = null;
       if (inputMode !== "text" && pendingFile) {
         const r = await readFileAsBase64(pendingFile);
         b64 = r.base64; mime = r.mimeType;
+        // #50 fix — store in ref synchronously so clarification answer buttons
+        // always have the image data regardless of React's async state flush
+        pendingImageRef.current = { b64, mime };
         setPendingB64(b64); setPendingMime(mime);
       }
       setLoadingMsg("Reviewing…");
@@ -1871,10 +1921,16 @@ export default function TrackerPage() {
                 </span>
               </div>
               {totals.calories > 0 && (
-                <button onClick={() => setShowShareCard(true)}
-                  className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
-                  📤 Share
-                </button>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setShowShareCard(true)}
+                    className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
+                    📤 Share
+                  </button>
+                  <a href={`/${userId}/nutrition`}
+                    className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
+                    📊 Nutrition →
+                  </a>
+                </div>
               )}
             </div>
           </div>
@@ -2020,12 +2076,18 @@ export default function TrackerPage() {
               <p className="text-sm mb-3">{clarification.question}</p>
               <div className="space-y-2">
                 {clarification.options.map(opt => (
-                  <button key={opt} onClick={() => runFinal(textInput, inputMode, opt, pendingB64, pendingMime)}
+                  <button key={opt} onClick={() => {
+                    const img = pendingImageRef.current;
+                    runFinal(textInput, inputMode, opt, img?.b64 ?? pendingB64, img?.mime ?? pendingMime);
+                  }}
                     className="w-full text-left text-sm px-4 py-2.5 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-600 rounded-xl hover:bg-gray-50">
                     {opt}
                   </button>
                 ))}
-                <button onClick={() => runFinal(textInput, inputMode, "Not sure, best estimate", pendingB64, pendingMime)}
+                <button onClick={() => {
+                  const img = pendingImageRef.current;
+                  runFinal(textInput, inputMode, "Not sure, best estimate", img?.b64 ?? pendingB64, img?.mime ?? pendingMime);
+                }}
                   className="w-full text-left text-xs px-4 py-2 text-gray-400 hover:text-gray-600">
                   Not sure — just estimate
                 </button>
@@ -2305,6 +2367,76 @@ export default function TrackerPage() {
           </div>
         </div>
       )}
+      {/* #46 — Notification settings modal */}
+      {showNotifSettings && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <p className="font-medium text-sm">🔔 Logging reminder</p>
+              <button onClick={() => setShowNotifSettings(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            {notifPermission === "denied" ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500 mb-2">Notifications are blocked in your browser settings.</p>
+                <p className="text-xs text-gray-400">To enable, open your browser/phone settings and allow notifications for this site.</p>
+              </div>
+            ) : notifPermission === "granted" ? (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">Daily reminder is active. Pick the time you want to be nudged:</p>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Reminder time</label>
+                  <input
+                    type="time"
+                    value={notifTime}
+                    onChange={e => setNotifTime(e.target.value)}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none focus:border-indigo-400"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowNotifSettings(false)}
+                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+                  <button onClick={() => { scheduleNotification(notifTime); setShowNotifSettings(false); }}
+                    className="flex-[2] bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-xl py-2.5 text-sm font-medium">
+                    Save reminder
+                  </button>
+                </div>
+                <button onClick={() => {
+                  localStorage.removeItem(`caloriq-notif-time-${userId}`);
+                  if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
+                    navigator.serviceWorker.controller.postMessage({ type: "CANCEL_REMINDER", userId });
+                  }
+                  setNotifPermission("default");
+                  setShowNotifSettings(false);
+                }} className="w-full py-2 text-xs text-red-400 hover:text-red-600">
+                  Turn off reminders
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <p className="text-sm text-gray-500">Get a daily nudge to log your meals at a time that works for you.</p>
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Reminder time</label>
+                  <input
+                    type="time"
+                    value={notifTime}
+                    onChange={e => setNotifTime(e.target.value)}
+                    className="w-full border border-gray-200 dark:border-zinc-600 rounded-xl px-3 py-2.5 text-sm bg-transparent outline-none focus:border-indigo-400"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setShowNotifSettings(false)}
+                    className="flex-1 border border-gray-200 dark:border-zinc-600 rounded-xl py-2.5 text-sm text-gray-400">Cancel</button>
+                  <button onClick={async () => { await handleEnableNotifications(); setShowNotifSettings(false); }}
+                    className="flex-[2] bg-indigo-500 text-white rounded-xl py-2.5 text-sm font-medium">
+                    Enable reminders 🔔
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="mt-6 mb-4 space-y-2">
         <div className="flex items-center justify-center gap-6 flex-wrap">
@@ -2326,8 +2458,15 @@ export default function TrackerPage() {
           }} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             {rolloverEnabled ? "🔄 Rollover: on" : "🔄 Rollover: off"}
           </button>
-          {/* About link */}
-          <a href="/about" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">💡 About</a>
+          {/* #46 — Notification reminder toggle */}
+          <button onClick={() => setShowNotifSettings(true)}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            {notifPermission === "granted" ? "🔔 Reminder set" : "🔔 Set reminder"}
+          </button>
+          {/* #13 — Extended nutrition page */}
+          <a href={`/${userId}/nutrition`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+            📊 Nutrition details
+          </a>
         </div>
         {profile?.is_pro && (
           <div className="mt-6 pt-4 border-t border-gray-100 dark:border-zinc-800">
