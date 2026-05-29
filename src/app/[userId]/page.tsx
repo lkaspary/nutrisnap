@@ -946,6 +946,24 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
+// ── #69 — Friendly error messages ────────────────────────────────────────────
+function friendlyError(raw: string): { emoji: string; message: string; hint: string } {
+  const r = raw.toLowerCase();
+  if (r.includes("fetch") || r.includes("network") || r.includes("failed to fetch"))
+    return { emoji: "📡", message: "No internet connection", hint: "Check your connection and try again." };
+  if (r.includes("timeout") || r.includes("timed out") || r.includes("deadline"))
+    return { emoji: "⏱️", message: "Taking too long", hint: "The server is busy. Try again in a moment." };
+  if (r.includes("parse") || r.includes("json") || r.includes("incomplete"))
+    return { emoji: "🤔", message: "Couldn't understand that", hint: "Try describing the food differently or use a clearer photo." };
+  if (r.includes("label") || r.includes("illegible") || r.includes("blurry"))
+    return { emoji: "📸", message: "Label is hard to read", hint: "Try better lighting or hold the camera closer." };
+  if (r.includes("limit") || r.includes("rate"))
+    return { emoji: "🚦", message: "Too many requests", hint: "Wait a moment and try again." };
+  if (r.includes("image") || r.includes("photo") || r.includes("base64"))
+    return { emoji: "🖼️", message: "Problem with the photo", hint: "Try taking a new photo or use text mode instead." };
+  return { emoji: "😕", message: "Something went wrong", hint: "Tap retry or try describing the food as text." };
+}
+
 // ── MealCard ──────────────────────────────────────────────────────────────────
 function MealCard({ meal: m, onDelete, onUpdate, profileId, onFlag }: {
   meal: Meal;
@@ -1796,7 +1814,10 @@ export default function TrackerPage() {
       if (result.error) { setError(result.error); setLoading(false); return; }
       const imgUrl = mode !== "text" && preview ? preview : undefined;
       await handleAddMeal(result, imgUrl, pendingMealType, pendingMealTime);
-    } catch { setError("Could not estimate. Try again."); }
+    } catch (e: any) {
+      const msg = e?.message ?? "Could not estimate. Try again.";
+      setError(msg.includes("fetch") || !navigator.onLine ? "network error" : msg);
+    }
     finally { setLoading(false); }
   };
 
@@ -1825,7 +1846,11 @@ export default function TrackerPage() {
       } else {
         await runFinal(textInput, inputMode, null, b64, mime);
       }
-    } catch { setError("Something went wrong."); setLoading(false); }
+    } catch (e: any) {
+      const msg = e?.message ?? "";
+      setError(!navigator.onLine || msg.includes("fetch") ? "network error" : "Something went wrong. Try again.");
+      setLoading(false);
+    }
   };
 
   const modeConfig = {
@@ -2183,7 +2208,22 @@ export default function TrackerPage() {
           )}
 
           {loading && <p className="text-center text-sm text-gray-400 mt-3">⏳ {loadingMsg}</p>}
-          {error   && <p className="text-red-500 text-sm mt-2">{error}</p>}
+          {error && (() => {
+            const { emoji, message, hint } = friendlyError(error);
+            return (
+              <div className="mt-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl px-4 py-3 flex items-start gap-3">
+                <span className="text-2xl flex-shrink-0">{emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-red-700 dark:text-red-400">{message}</p>
+                  <p className="text-xs text-red-500 dark:text-red-500 mt-0.5">{hint}</p>
+                </div>
+                <button onClick={startAnalysis} disabled={!canSubmit}
+                  className="flex-shrink-0 text-xs bg-red-100 dark:bg-red-800 text-red-600 dark:text-red-300 px-3 py-1.5 rounded-xl font-medium hover:bg-red-200 dark:hover:bg-red-700 transition-colors disabled:opacity-40">
+                  Retry
+                </button>
+              </div>
+            );
+          })()}
 
           <div className="mt-6">
             <p className="text-xs font-medium text-gray-400 mb-2">Recent foods</p>
@@ -2342,15 +2382,15 @@ export default function TrackerPage() {
                   <p className="text-sm font-semibold">Pro Monthly</p>
                   <p className="text-xs text-gray-400">Unlimited AI analyses</p>
                 </div>
-                <p className="text-lg font-bold text-blue-500">$1.99<span className="text-xs font-normal text-gray-400">/mo</span></p>
+                <p className="text-lg font-bold text-blue-500">$0.49<span className="text-xs font-normal text-gray-400">/mo</span></p>
               </button>
               <button onClick={() => handleUpgrade("yearly")}
                 className="w-full bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-3 flex justify-between items-center hover:bg-blue-100 transition-colors">
                 <div className="text-left">
-                  <p className="text-sm font-semibold">Pro Yearly <span className="text-xs text-green-500 font-medium">Save 17%</span></p>
-                  <p className="text-xs text-gray-400">Best value</p>
+                  <p className="text-sm font-semibold">Pro Yearly <span className="text-xs text-green-500 font-medium">Save 15%</span></p>
+                  <p className="text-xs text-gray-400">Best value — less than a coffee</p>
                 </div>
-                <p className="text-lg font-bold text-blue-500">$19.99<span className="text-xs font-normal text-gray-400">/yr</span></p>
+                <p className="text-lg font-bold text-blue-500">$4.99<span className="text-xs font-normal text-gray-400">/yr</span></p>
               </button>
             </div>
             {!showPromo ? (
