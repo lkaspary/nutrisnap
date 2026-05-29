@@ -103,22 +103,23 @@ function exportMealsCSV(meals: Meal[], profileName: string) {
 
 // ── WeeklyCard ────────────────────────────────────────────────────────────────
 function WeeklyCard({
-  meals, calorieGoal, showInsights, insightsLoading, insightsText, isSunday, onToggleInsights,
+  meals, calorieGoal, showInsights, insightsLoading, insightsText, isSunday, onToggleInsights, confirmedDates,
 }: {
   meals: Meal[]; calorieGoal: number;
   showInsights: boolean; insightsLoading: boolean; insightsText: string;
   isSunday: boolean; onToggleInsights: () => void;
+  confirmedDates: Set<string>;
 }) {
   const last7 = getLast7Days();
   const weekMeals = meals.filter(m => last7.includes(m.meal_date));
 
-  // Only days with ≥2 meals are "fully logged" — used for both count and averages
+  // Full day = user explicitly confirmed it via the ✅ button
   const dailyTotals = last7.map(date => {
     const dayMeals = weekMeals.filter(m => m.meal_date === date);
-    return { date, calories: sumMacros(dayMeals).calories, mealCount: dayMeals.length };
-  }).filter(d => d.mealCount >= 2);
+    return { date, calories: sumMacros(dayMeals).calories, confirmed: confirmedDates.has(date) };
+  }).filter(d => d.confirmed && d.calories > 0);
 
-  const daysLogged = dailyTotals.length; // full days only — never inflated by partial days
+  const daysLogged = dailyTotals.length; // confirmed days only
 
   const avgCalories = daysLogged
     ? Math.round(dailyTotals.reduce((s, d) => s + d.calories, 0) / daysLogged)
@@ -1341,6 +1342,20 @@ export default function TrackerPage() {
       setShowForgotNudge(true);
     }
   }, [todayMeals, userId, today]);
+  // Build set of confirmed dates from localStorage for WeeklyCard
+  const confirmedDates = useMemo(() => {
+    const last7 = getLast7Days();
+    const set = new Set<string>();
+    for (const date of last7) {
+      const isToday = date === today;
+      const confirmed = isToday
+        ? dayConfirmed
+        : localStorage.getItem(`dayConfirmed:${userId}:${date}`) === "true";
+      if (confirmed) set.add(date);
+    }
+    return set;
+  }, [userId, today, dayConfirmed, meals]); // meals in deps so it re-runs after logging
+
   const streak = useMemo(() => {
     const loggedDates = new Set([
       ...historyMeals.map(m => m.meal_date),
@@ -1913,26 +1928,26 @@ export default function TrackerPage() {
             {rolloverCalories > 0 && (
               <p className="text-[10px] text-emerald-500 mt-1.5">+{rolloverCalories} kcal rolled over from yesterday</p>
             )}
-            <div className="mt-2 flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
-                <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
-                  {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
-                </span>
-              </div>
-              {totals.calories > 0 && (
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setShowShareCard(true)}
-                    className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
-                    📤 Share
-                  </button>
-                  <a href={`/${userId}/nutrition`}
-                    className="text-xs text-gray-400 hover:text-indigo-500 transition-colors flex items-center gap-1">
-                    📊 Nutrition →
-                  </a>
-                </div>
-              )}
+            {/* Streak row */}
+            <div className="mt-2 flex items-center gap-1">
+              <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
+              <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
+                {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
+              </span>
             </div>
+            {/* Action buttons row */}
+            {totals.calories > 0 && (
+              <div className="mt-2 flex gap-2">
+                <button onClick={() => setShowShareCard(true)}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                  📤 Share
+                </button>
+                <a href={`/${userId}/nutrition`}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
+                  📊 Nutrition
+                </a>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1985,6 +2000,7 @@ export default function TrackerPage() {
         insightsLoading={insightsLoading}
         insightsText={insightsText}
         isSunday={new Date().getDay() === 0}
+        confirmedDates={confirmedDates}
         onToggleInsights={() => {
           if (!showInsights) fetchInsights();
           else setShowInsights(false);
