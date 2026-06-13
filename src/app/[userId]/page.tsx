@@ -1010,7 +1010,7 @@ function MealCard({ meal: m, onDelete, onUpdate, profileId, onFlag }: {
             profileId: profileId,
           }),
         }).then(r => r.json());
-        if (!res.error) {
+        if (!res.error && !res.needsClarification) {
           onUpdate(m.id, {
             calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
             serving_size: res.serving_size ?? m.serving_size,
@@ -1176,8 +1176,8 @@ function MacroRatioBar({ protein, carbs, fat }: { protein: number; carbs: number
 export default function TrackerPage() {
   const router = useRouter();
   const { userId } = useParams<{ userId: string }>();
-  const searchParams = useSearchParams();                          // ← NEW
-  const justUpgraded = searchParams.get("upgraded") === "true";   // ← NEW
+  const searchParams = useSearchParams();
+  const justUpgraded = searchParams.get("upgraded") === "true";
 
   const [profile, setProfile] = useState<Profile | null>(null);
   const [meals, setMeals] = useState<Meal[]>([]);
@@ -1569,7 +1569,7 @@ export default function TrackerPage() {
           base64: null, mimeType: null, clarification: null, profileId: userId,
         }),
       }).then(r => r.json());
-      if (!res.error) {
+      if (!res.error && !res.needsClarification) {
         await handleUpdateMeal(feedbackMeal.id, {
           calories: res.calories, protein: res.protein, carbs: res.carbs, fat: res.fat,
           serving_size: res.serving_size ?? feedbackMeal.serving_size,
@@ -1794,6 +1794,11 @@ export default function TrackerPage() {
   };
 
   // ── AI analysis ───────────────────────────────────────────────────────────
+  // Single call into /api/analyze. The endpoint returns EITHER:
+  //   - { needsClarification: true, question, options }  → show question (only on first pass)
+  //   - { limitReached: true, ... }                       → show upgrade modal
+  //   - { error: "..." }                                   → show friendly error
+  //   - the full nutrition result                          → log the meal
   const runFinal = async (
     text: string, mode: string, clar: string | null,
     b64: string | null, mime: string | null,
@@ -1805,24 +1810,37 @@ export default function TrackerPage() {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar, profileId: userId }),
       }).then(r => r.json());
+
+      // Clarification: only returned on the first pass (when clar === null).
+      // The backend enforces "never ask twice" once a clarification is provided,
+      // so this branch cannot loop.
+      if (result.needsClarification) {
+        setClar({ question: result.question, options: result.options ?? [] });
+        return;
+      }
       if (result.limitReached) {
         setUsageCount(result.usageCount ?? 5);
         setShowUpgrade(true);
-        setLoading(false);
+        setClar(null);
         return;
       }
-      if (result.error) { setError(result.error); setLoading(false); return; }
+      if (result.error) {
+        setError(result.error);
+        setClar(null);
+        return;
+      }
       const imgUrl = mode !== "text" && preview ? preview : undefined;
       await handleAddMeal(result, imgUrl, pendingMealType, pendingMealTime);
     } catch (e: any) {
       const msg = e?.message ?? "Could not estimate. Try again.";
       setError(msg.includes("fetch") || !navigator.onLine ? "network error" : msg);
+      setClar(null);
     }
     finally { setLoading(false); }
   };
 
   const startAnalysis = async () => {
-    // FIX #51 — fully reset before each attempt so error/clarification state never loops
+    // Fully reset before each attempt so stale error/clarification state never lingers
     setLoading(true); setError(""); setClar(null); setPendingB64(null); setPendingMime(null);
     pendingImageRef.current = null;
     try {
@@ -1830,22 +1848,13 @@ export default function TrackerPage() {
       if (inputMode !== "text" && pendingFile) {
         const r = await readFileAsBase64(pendingFile);
         b64 = r.base64; mime = r.mimeType;
-        // #50 fix — store in ref synchronously so clarification answer buttons
+        // store in ref synchronously so clarification answer buttons
         // always have the image data regardless of React's async state flush
         pendingImageRef.current = { b64, mime };
         setPendingB64(b64); setPendingMime(mime);
       }
-      setLoadingMsg("Reviewing…");
-      const check = await fetch("/api/followup", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: inputMode, text: textInput, base64: b64, mimeType: mime }),
-      }).then(r => r.json());
-      if (check.needsClarification) {
-        setClar({ question: check.question, options: check.options });
-        setLoading(false);
-      } else {
-        await runFinal(textInput, inputMode, null, b64, mime);
-      }
+      // Single call: /api/analyze returns EITHER a clarification request OR the result.
+      await runFinal(textInput, inputMode, null, b64, mime);
     } catch (e: any) {
       const msg = e?.message ?? "";
       setError(!navigator.onLine || msg.includes("fetch") ? "network error" : "Something went wrong. Try again.");
