@@ -10,11 +10,29 @@ function HomeContent() {
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState("");
 
+  // DEBUG: on-screen log panel. Remove after debugging is done.
+  const [debugLog, setDebugLog] = useState<string[]>([]);
+  const log = (msg: string) => {
+    const ts = new Date().toISOString().split("T")[1].slice(0, 12);
+    setDebugLog(prev => [...prev, `${ts} ${msg}`]);
+    console.log("[debug]", msg);
+  };
+
   useEffect(() => {
+    log("page mounted");
+    // @ts-expect-error - Capacitor is injected at runtime by the native shell
+    const cap = typeof window !== "undefined" ? (window as any).Capacitor : undefined;
+    log(`window.Capacitor exists: ${!!cap}`);
+    if (cap) {
+      log(`isNativePlatform: ${!!cap.isNativePlatform?.()}`);
+      log(`platform: ${cap.getPlatform?.() ?? "?"}`);
+    }
+
     const err = searchParams.get("error");
     if (err) setError("Sign in failed. Please try again.");
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      log(`getSession returned: session=${!!session}`);
       if (session?.user) {
         const { data: profile } = await supabase
           .from("profiles")
@@ -22,6 +40,7 @@ function HomeContent() {
           .eq("user_id", session.user.id)
           .single();
         if (profile) {
+          log(`have profile, redirecting to /${profile.id}`);
           router.push(`/${profile.id}`);
           return;
         }
@@ -30,9 +49,14 @@ function HomeContent() {
     });
   }, [router, searchParams]);
 
-  const handleGoogleSignIn = async () => {
-    setSigningIn(true);
-    setError("");
+  const isNative = (): boolean => {
+    if (typeof window === "undefined") return false;
+    // @ts-expect-error - Capacitor is injected at runtime by the native shell
+    return !!window.Capacitor?.isNativePlatform?.();
+  };
+
+  const signInWeb = async () => {
+    log("signInWeb start");
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
@@ -40,8 +64,133 @@ function HomeContent() {
       },
     });
     if (error) {
+      log(`signInWeb error: ${error.message}`);
       setError("Could not start sign in. Try again.");
       setSigningIn(false);
+    }
+  };
+
+  const signInNative = async () => {
+    log("signInNative start");
+    try {
+      log("importing @capacitor/browser");
+      const { Browser } = await import("@capacitor/browser");
+      log("importing @capacitor/app");
+      const { App } = await import("@capacitor/app");
+      log("plugins imported OK");
+
+      const listener = await App.addListener("appUrlOpen", async ({ url }) => {
+        log(`appUrlOpen fired: ${url}`);
+        if (!url.startsWith("com.caloriq.mobile://login-callback")) {
+          log("URL doesn't match login-callback prefix, ignoring");
+          return;
+        }
+
+        await Browser.close().catch((e) => log(`Browser.close err: ${e}`));
+
+        const hash = url.split("#")[1] ?? "";
+        const params = new URLSearchParams(hash);
+        const access_token = params.get("access_token");
+        const refresh_token = params.get("refresh_token");
+        log(`tokens parsed: access=${!!access_token} refresh=${!!refresh_token}`);
+
+        listener.remove();
+
+        if (!access_token || !refresh_token) {
+          setError("Sign in failed. Please try again.");
+          setSigningIn(false);
+          return;
+        }
+
+        const { error: setErr } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+        if (setErr) {
+          log(`setSession error: ${setErr.message}`);
+          setError("Could not complete sign in. Try again.");
+          setSigningIn(false);
+          return;
+        }
+        log("setSession OK");
+
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          log("no session after setSession");
+          setError("Sign in failed. Try again.");
+          setSigningIn(false);
+          return;
+        }
+        const user = session.user;
+        const { data: existingProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("user_id", user.id)
+          .single();
+        if (existingProfile) {
+          log(`existing profile, navigating`);
+          router.push(`/${existingProfile.id}`);
+          return;
+        }
+        const name = user.user_metadata?.full_name ?? user.email?.split("@")[0] ?? "User";
+        const photoUrl = user.user_metadata?.avatar_url ?? user.user_metadata?.picture ?? null;
+        const { data: newProfile, error: insErr } = await supabase
+          .from("profiles")
+          .insert({
+            user_id: user.id,
+            name,
+            avatar: "🧑",
+            avatar_bg: "#EEEDFE",
+            photo_url: photoUrl,
+          })
+          .select("id")
+          .single();
+        if (insErr || !newProfile) {
+          log(`profile insert err: ${insErr?.message}`);
+          setError("Could not create profile. Try again.");
+          setSigningIn(false);
+          return;
+        }
+        router.push(`/${newProfile.id}`);
+      });
+      log("appUrlOpen listener registered");
+
+      log("calling signInWithOAuth (skipBrowserRedirect)");
+      const { data, error: oauthErr } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: "com.caloriq.mobile://login-callback",
+          skipBrowserRedirect: true,
+        },
+      });
+      log(`signInWithOAuth returned: url=${!!data?.url} err=${oauthErr?.message ?? "none"}`);
+      if (oauthErr || !data?.url) {
+        listener.remove();
+        setError("Could not start sign in. Try again.");
+        setSigningIn(false);
+        return;
+      }
+
+      log("opening Browser with OAuth url");
+      await Browser.open({ url: data.url, presentationStyle: "popover" });
+      log("Browser.open returned");
+    } catch (e: any) {
+      log(`signInNative caught: ${e?.message ?? e}`);
+      setError("Could not start sign in. Try again.");
+      setSigningIn(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    log("button clicked");
+    setSigningIn(true);
+    setError("");
+    if (isNative()) {
+      log("→ native path");
+      await signInNative();
+    } else {
+      log("→ web path");
+      await signInWeb();
     }
   };
 
@@ -99,6 +248,14 @@ function HomeContent() {
       <p className="text-center text-xs text-gray-400 mt-4">
         Your data syncs across all your devices
       </p>
+
+      {/* DEBUG PANEL — REMOVE AFTER DEBUGGING */}
+      <div className="mt-8 p-3 bg-black/80 text-green-300 text-[10px] font-mono rounded-lg whitespace-pre-wrap break-all max-h-96 overflow-auto">
+        <div className="text-yellow-300 mb-1 font-bold">DEBUG LOG</div>
+        {debugLog.length === 0 ? <div className="text-gray-500">(no entries yet)</div> :
+          debugLog.map((line, i) => <div key={i}>{line}</div>)
+        }
+      </div>
     </div>
   );
 }
