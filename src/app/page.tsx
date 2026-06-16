@@ -20,7 +20,6 @@ function HomeContent() {
 
   useEffect(() => {
     log("page mounted");
-    // @ts-expect-error - Capacitor is injected at runtime by the native shell
     const cap = typeof window !== "undefined" ? (window as any).Capacitor : undefined;
     log(`window.Capacitor exists: ${!!cap}`);
     if (cap) {
@@ -51,8 +50,7 @@ function HomeContent() {
 
   const isNative = (): boolean => {
     if (typeof window === "undefined") return false;
-    // @ts-expect-error - Capacitor is injected at runtime by the native shell
-    return !!window.Capacitor?.isNativePlatform?.();
+    return !!(window as any).Capacitor?.isNativePlatform?.();
   };
 
   const signInWeb = async () => {
