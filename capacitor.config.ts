@@ -1,5 +1,4 @@
 import type { CapacitorConfig } from '@capacitor/cli';
-
 const config: CapacitorConfig = {
   appId: 'com.caloriq.mobile',
   appName: 'Calor-IQ',
@@ -9,5 +8,4 @@ const config: CapacitorConfig = {
     cleartext: false,
   },
 };
-
 export default config;
