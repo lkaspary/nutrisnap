@@ -9,6 +9,9 @@ export const dynamic = "force-dynamic";
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const FREE_LIMIT = 5;
 
+// Centralize the model name so we never have version drift across this file again.
+const MODEL = "claude-sonnet-4-6";
+
 async function getSupabase() {
   const cookieStore = await cookies();
   return createServerClient(
@@ -44,9 +47,6 @@ export async function POST(req: NextRequest) {
     const isPro = profile?.is_pro ?? false;
 
     // Read current usage and block if over the free limit.
-    // IMPORTANT: we do NOT increment here. Usage is only counted when we return
-    // an actual nutrition result (via countUsage), so a clarification request
-    // never burns one of the free analyses.
     let currentCalls = 0;
     if (!isPro) {
       const { data: usage } = await supabase
@@ -70,7 +70,6 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Increments the free-tier counter exactly once, only for real results.
     const countUsage = async () => {
       if (isPro) return;
       await supabase.from("usage").upsert({
@@ -80,10 +79,10 @@ export async function POST(req: NextRequest) {
       }, { onConflict: "profile_id,date" });
     };
 
-    // ── #25: Weekly insights mode ────────────────────────────────────────────
+    // ── Weekly insights mode ────────────────────────────────────────────
     if (mode === "insights") {
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: MODEL,
         max_tokens: 400,
         messages: [{ role: "user", content: text }],
       });
@@ -95,12 +94,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ insights });
     }
 
-    // NOTE: The OpenFoodFacts pre-check for *typed text* was removed.
-    // OFF is a database of branded/packaged products, so searching a whole food
-    // like "banana" returned irrelevant items ("HEB Banana Bread") with per-100g
-    // values. Typed foods now go to the AI. OFF is still used for label scans
-    // below, where matching a printed brand name is valid.
-
     // ── Build AI inputs ───────────────────────────────────────────────────────
     const imgBlock = base64 && mimeType ? [{
       type: "image" as const,
@@ -110,9 +103,6 @@ export async function POST(req: NextRequest) {
     const hasImage = imgBlock.length > 0;
     const hasText = text && text.trim().length > 0;
 
-    // Clarification is only allowed on the FIRST pass (when the user has not yet
-    // answered a question). Once a clarification is provided, the model must
-    // return a result — this is what prevents the infinite question loop.
     const allowClarify = !clarification;
     const clarifyInstruction = allowClarify
       ? `\n\nCLARIFY ONLY IF NEEDED: If — and only if — the portion size or preparation is genuinely ambiguous in a way that would substantially change the estimate, respond INSTEAD with a single short question as this exact JSON and nothing else:
@@ -122,12 +112,11 @@ Most entries do NOT need this. If you can make a reasonable estimate, do NOT ask
 
     let prompt = "";
     if (mode === "label") {
-      // Step 1: Extract product name from label to check OpenFoodFacts
       if (hasImage) {
         try {
           const namePrompt = `Look at this nutrition label image. What is the product name and brand? Reply with ONLY this JSON, nothing else: {"name":"brand and product name"}`;
           const nameResponse = await client.messages.create({
-            model: "claude-sonnet-4-20250514",
+            model: MODEL,
             max_tokens: 100,
             messages: [{ role: "user", content: [...imgBlock, { type: "text" as const, text: namePrompt }] }],
           });
@@ -245,7 +234,7 @@ Otherwise respond with ONLY this JSON:
     ];
 
     const response = await client.messages.create({
-      model: "claude-sonnet-4-20250514",
+      model: MODEL,
       max_tokens: 1024,
       messages: [{ role: "user", content }],
     });
@@ -261,8 +250,6 @@ Otherwise respond with ONLY this JSON:
 
     const parsed = JSON.parse(match[0]);
 
-    // Clarification request — only honored on the first pass. This is never
-    // counted against usage, and is impossible once a clarification was provided.
     if (parsed.needsClarification === true && allowClarify) {
       return NextResponse.json({
         needsClarification: true,
@@ -275,7 +262,6 @@ Otherwise respond with ONLY this JSON:
     const missing = required.filter(k => !(k in parsed));
     if (missing.length > 0) return NextResponse.json({ error: "Incomplete nutrition data." }, { status: 500 });
 
-    // Real result — count it once, then return.
     await countUsage();
 
     return NextResponse.json({
