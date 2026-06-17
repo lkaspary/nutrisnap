@@ -11,6 +11,24 @@ import {
   DAILY_GOAL, PROTEIN_GOAL, calcCalorieGoal, calcProteinGoal,
 } from "@/lib/utils";
 
+// ── SSR-safe localStorage helpers ────────────────────────────────────────────
+// During Next.js server rendering, `window` is undefined and direct localStorage
+// access throws "ReferenceError: localStorage is not defined". These helpers
+// no-op on the server and behave normally in the browser.
+const isBrowser = () => typeof window !== "undefined";
+function lsGet(key: string): string | null {
+  if (!isBrowser()) return null;
+  try { return window.localStorage.getItem(key); } catch { return null; }
+}
+function lsSet(key: string, value: string): void {
+  if (!isBrowser()) return;
+  try { window.localStorage.setItem(key, value); } catch {}
+}
+function lsRemove(key: string): void {
+  if (!isBrowser()) return;
+  try { window.localStorage.removeItem(key); } catch {}
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((res, rej) => {
@@ -113,13 +131,12 @@ function WeeklyCard({
   const last7 = getLast7Days();
   const weekMeals = meals.filter(m => last7.includes(m.meal_date));
 
-  // Full day = user explicitly confirmed it via the ✅ button
   const dailyTotals = last7.map(date => {
     const dayMeals = weekMeals.filter(m => m.meal_date === date);
     return { date, calories: sumMacros(dayMeals).calories, confirmed: confirmedDates.has(date) };
   }).filter(d => d.confirmed && d.calories > 0);
 
-  const daysLogged = dailyTotals.length; // confirmed days only
+  const daysLogged = dailyTotals.length;
 
   const avgCalories = daysLogged
     ? Math.round(dailyTotals.reduce((s, d) => s + d.calories, 0) / daysLogged)
@@ -135,12 +152,10 @@ function WeeklyCard({
   const diffLabel = diff === 0 ? "on target" : diff > 0 ? `+${diff} over goal` : `${Math.abs(diff)} under goal`;
   const diffColor = Math.abs(diff) < 100 ? "#22C55E" : Math.abs(diff) < 300 ? "#F59E0B" : "#E24B4A";
 
-  // Hide card entirely only if no meals logged at all this week
   if (weekMeals.length === 0) return null;
 
   return (
     <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl mb-4 overflow-hidden">
-      {/* Summary row — always visible */}
       <button onClick={onToggleInsights} className="w-full px-4 py-3 flex items-center gap-3 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-left">
         <div className="w-9 h-9 rounded-xl flex items-center justify-center text-lg flex-shrink-0"
           style={{ background: isSunday ? "#FEF3C7" : "#F3F4F6" }}>
@@ -159,7 +174,6 @@ function WeeklyCard({
         <span className="text-gray-300 text-xs flex-shrink-0">{showInsights ? "▲" : "▼"}</span>
       </button>
 
-      {/* Expandable AI insights */}
       {showInsights && (
         <div className="px-4 pb-4 border-t border-gray-100 dark:border-zinc-800 pt-3">
           {insightsLoading ? (
@@ -240,7 +254,6 @@ function OnboardingFlow({
     <div className="fixed inset-0 bg-white dark:bg-zinc-950 z-50 flex flex-col overflow-y-auto">
       <div className="max-w-md mx-auto w-full px-6 py-10 flex flex-col min-h-full">
 
-        {/* Progress dots */}
         <div className="flex justify-center gap-2 mb-8">
           {[0,1,2].map(i => (
             <div key={i} className="h-1.5 rounded-full transition-all"
@@ -248,7 +261,6 @@ function OnboardingFlow({
           ))}
         </div>
 
-        {/* Step 0 — Welcome + body stats */}
         {step === 0 && (
           <div className="flex-1 flex flex-col">
             <div className="text-center mb-8">
@@ -262,7 +274,6 @@ function OnboardingFlow({
               <p className="text-sm text-gray-400">Let's set up your personal calorie goal.<br />Takes 30 seconds.</p>
             </div>
 
-            {/* Unit toggle */}
             <div className="flex justify-end mb-4">
               <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                 <button onClick={() => setUseImperial(false)}
@@ -332,7 +343,6 @@ function OnboardingFlow({
           </div>
         )}
 
-        {/* Step 1 — Activity level */}
         {step === 1 && (
           <div className="flex-1 flex flex-col">
             <div className="mb-8">
@@ -367,7 +377,6 @@ function OnboardingFlow({
           </div>
         )}
 
-        {/* Step 2 — Goal + summary */}
         {step === 2 && (
           <div className="flex-1 flex flex-col">
             <div className="mb-8">
@@ -392,7 +401,6 @@ function OnboardingFlow({
               ))}
             </div>
 
-            {/* Preview calorie goal */}
             {previewGoal && goal && (
               <div className="bg-gray-50 dark:bg-zinc-800 rounded-2xl p-4 mb-6 text-center">
                 <p className="text-xs text-gray-400 mb-1">Your daily calorie goal</p>
@@ -441,7 +449,6 @@ function MealTimeEditor({
   mealTime: Date; mealType: MealType;
   onChange: (d: Date) => void; onTypeChange: (t: MealType) => void;
 }) {
-  // Build last-7-days options for back-dating (#26)
   const dateOptions = useMemo(() => {
     return Array.from({ length: 7 }, (_, i) => {
       const d = new Date();
@@ -463,7 +470,6 @@ function MealTimeEditor({
 
   return (
     <div className="bg-gray-50 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 rounded-2xl p-3 mb-3">
-      {/* Date selector */}
       <p className="text-xs font-medium text-gray-400 mb-2">Log date</p>
       <div className="flex gap-1 overflow-x-auto pb-1 mb-3 scrollbar-hide">
         {dateOptions.map(({ iso, label }) => (
@@ -671,10 +677,10 @@ function fuzzyMatch(name: string, notes: string | null, query: string): boolean 
 // #32 — max 5 pinned favorites, stored per-user in localStorage
 const MAX_FAVS = 5;
 function getFavKeys(userId: string): string[] {
-  try { return JSON.parse(localStorage.getItem(`favs:${userId}`) ?? "[]"); } catch { return []; }
+  try { return JSON.parse(lsGet(`favs:${userId}`) ?? "[]"); } catch { return []; }
 }
 function saveFavKeys(userId: string, keys: string[]) {
-  localStorage.setItem(`favs:${userId}`, JSON.stringify(keys));
+  lsSet(`favs:${userId}`, JSON.stringify(keys));
 }
 
 function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Meal) => void; userId: string }) {
@@ -733,7 +739,6 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
 
   return (
     <div className="mb-4">
-      {/* Favorites strip */}
       {favMeals.length > 0 && !q.trim() && (
         <div className="mb-3">
           <p className="text-xs font-medium text-gray-400 mb-1.5">⭐ Favorites</p>
@@ -759,7 +764,7 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
   );
 }
 
-// ── ShareDaySummaryCard (#24) ─────────────────────────────────────────────────
+// ── ShareDaySummaryCard ──────────────────────────────────────────────────────
 function ShareDaySummaryCard({
   name, date, calories, calorieGoal, protein, carbs, fat, streak, onClose,
 }: {
@@ -786,35 +791,29 @@ function ShareDaySummaryCard({
     canvas.width = W; canvas.height = H;
     const ctx = canvas.getContext("2d")!;
 
-    // Background gradient
     const grad = ctx.createLinearGradient(0, 0, W, H);
     grad.addColorStop(0, "#0f0f1a");
     grad.addColorStop(1, "#1a1230");
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, W, H);
 
-    // Decorative arc
     ctx.beginPath();
     ctx.arc(W + 60, -60, 280, 0, Math.PI * 2);
     ctx.fillStyle = "rgba(127,119,221,0.08)";
     ctx.fill();
 
-    // Logo / brand
     ctx.fillStyle = "#7F77DD";
     ctx.font = "bold 18px system-ui, sans-serif";
     ctx.fillText("Caloriq", 36, 48);
 
-    // Date
     ctx.fillStyle = "rgba(255,255,255,0.45)";
     ctx.font = "13px system-ui, sans-serif";
     ctx.fillText(friendlyDate, 36, 70);
 
-    // Name
     ctx.fillStyle = "rgba(255,255,255,0.9)";
     ctx.font = "bold 15px system-ui, sans-serif";
     ctx.fillText(name, 36, 95);
 
-    // Big calorie number
     ctx.fillStyle = "#ffffff";
     ctx.font = "bold 72px system-ui, sans-serif";
     ctx.fillText(String(calories), 36, 185);
@@ -822,7 +821,6 @@ function ShareDaySummaryCard({
     ctx.font = "20px system-ui, sans-serif";
     ctx.fillText("kcal", 36 + ctx.measureText(String(calories)).width + 10, 178);
 
-    // Progress bar
     const barX = 36, barY = 200, barW = 360, barH = 8;
     ctx.fillStyle = "rgba(255,255,255,0.1)";
     roundRect(ctx, barX, barY, barW, barH, 4);
@@ -832,17 +830,14 @@ function ShareDaySummaryCard({
     roundRect(ctx, barX, barY, fillW, barH, 4);
     ctx.fill();
 
-    // Goal label
     ctx.fillStyle = "rgba(255,255,255,0.35)";
     ctx.font = "12px system-ui, sans-serif";
     ctx.fillText(`${pct}% of ${calorieGoal} kcal goal`, barX, 228);
 
-    // Status
     ctx.fillStyle = onTarget ? "#22C55E" : over ? "#E24B4A" : "#A78BFA";
     ctx.font = "bold 14px system-ui, sans-serif";
     ctx.fillText(`${statusEmoji}  ${statusText}`, barX, 255);
 
-    // Macros row
     const macros = [
       { label: "Protein", value: `${protein}g`, color: "#1D9E75" },
       { label: "Carbs",   value: `${carbs}g`,   color: "#378ADD" },
@@ -862,7 +857,6 @@ function ShareDaySummaryCard({
       ctx.fillText(m.label, mx + 12, my + 36);
     });
 
-    // Streak badge
     if (streak > 0) {
       ctx.fillStyle = "rgba(249,115,22,0.15)";
       roundRect(ctx, W - 130, 36, 96, 36, 18);
@@ -895,7 +889,6 @@ function ShareDaySummaryCard({
         }
       } catch { /* fall through */ }
     }
-    // Fallback: copy image to clipboard
     try {
       const blob = await (await fetch(shareUrl)).blob();
       await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
@@ -946,7 +939,7 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
   ctx.closePath();
 }
 
-// ── #69 — Friendly error messages ────────────────────────────────────────────
+// ── Friendly error messages ─────────────────────────────────────────────────
 function friendlyError(raw: string): { emoji: string; message: string; hint: string } {
   const r = raw.toLowerCase();
   if (r.includes("fetch") || r.includes("network") || r.includes("failed to fetch"))
@@ -980,7 +973,6 @@ function MealCard({ meal: m, onDelete, onUpdate, profileId, onFlag }: {
   const [editDate, setEditDate] = useState<string>(() => (m.meal_time || m.logged_at).split("T")[0]);
   const [saving, setSaving] = useState(false);
 
-  // #60 — sync state when meal prop updates after a save
   useEffect(() => {
     setEditDescription(m.notes?.trim() || m.name);
     setEditType(m.meal_type);
@@ -1095,7 +1087,6 @@ function MealCard({ meal: m, onDelete, onUpdate, profileId, onFlag }: {
                 className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:bg-gray-100 text-lg font-light">+</button>
             </div>
           </div>
-          {/* #39 — date correction */}
           <div>
             <p className="text-xs text-gray-400 mb-1.5">Entry date</p>
             <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)}
@@ -1199,13 +1190,10 @@ export default function TrackerPage() {
   const [showBodyStats, setShowBodyStats] = useState(false);
   const [bodyStats, setBodyStats] = useState({ weight_kg: "", height_cm: "", age: "", gender: "", activity_level: "", goal_type: "" });
   const [savingStats, setSavingStats] = useState(false);
-  // #62 — forgot to log nudge
   const [showForgotNudge, setShowForgotNudge] = useState(false);
-  // #28 — meal calorie feedback
   const [feedbackMeal, setFeedbackMeal] = useState<Meal | null>(null);
   const [mealFeedbackText, setMealFeedbackText] = useState("");
   const [mealFeedbackSaving, setMealFeedbackSaving] = useState(false);
-  // #18 — diet report
   const [showDietReport, setShowDietReport] = useState(false);
   const [dietReportText, setDietReportText] = useState("");
   const [dietReportLoading, setDietReportLoading] = useState(false);
@@ -1215,50 +1203,42 @@ export default function TrackerPage() {
   const [chartType, setChartType] = useState<ChartType>("calories");
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-  // #50 fix — holds image data synchronously so clarification buttons don't lose it
   const pendingImageRef = useRef<{ b64: string; mime: string } | null>(null);
 
   const [pendingMealTime, setPendingMealTime] = useState<Date>(() => floorTo30(new Date()));
   const [pendingMealType, setPendingMealType] = useState<MealType>(() => suggestMealType(new Date()));
   const [dayConfirmed, setDayConfirmed] = useState(false);
-  const [waterGlasses, setWaterGlasses] = useState(0);       // #22
-  // #47 — Calorie rollover
+  const [waterGlasses, setWaterGlasses] = useState(0);
   const [rolloverEnabled, setRolloverEnabled] = useState(false);
   const [rolloverCalories, setRolloverCalories] = useState(0);
   const [showRolloverPrompt, setShowRolloverPrompt] = useState(false);
   const [showInsights, setShowInsights] = useState(false);
   const [insightsText, setInsightsText] = useState("");
   const [insightsLoading, setInsightsLoading] = useState(false);
-  const [insightsFetchedFor, setInsightsFetchedFor] = useState<string | null>(null); // date string, prevents re-fetch
-  const [showOnboarding, setShowOnboarding] = useState(false); // #33
-  // #34 — Dark mode toggle
+  const [insightsFetchedFor, setInsightsFetchedFor] = useState<string | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const [isDark, setIsDark] = useState(false);
-  // #24 — Share meal card
   const [showShareCard, setShowShareCard] = useState(false);
-  // #46 — Push notifications
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
   const [showNotifSettings, setShowNotifSettings] = useState(false);
-  const [notifTime, setNotifTime] = useState("20:00"); // default 8pm
+  const [notifTime, setNotifTime] = useState("20:00");
   const today = todayISO();
 
   useEffect(() => {
-    const stored = localStorage.getItem(`dayConfirmed:${userId}`);
+    const stored = lsGet(`dayConfirmed:${userId}`);
     if (stored === today) setDayConfirmed(true);
-    // #47 — load rollover setting
-    const rv = localStorage.getItem(`caloriq-rollover-${userId}`);
+    const rv = lsGet(`caloriq-rollover-${userId}`);
     setRolloverEnabled(rv === "true");
-    // #34 — Apply saved theme on load (also done in layout.tsx head script for flash prevention)
-    const savedTheme = localStorage.getItem("caloriq-theme");
+    const savedTheme = lsGet("caloriq-theme");
     if (savedTheme === "dark") {
       document.documentElement.classList.add("dark");
       setIsDark(true);
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("caloriq-theme", "light");
+      lsSet("caloriq-theme", "light");
       setIsDark(false);
     }
-    // #22 load water for today
-    const w = localStorage.getItem(`water:${userId}:${today}`);
+    const w = lsGet(`water:${userId}:${today}`);
     if (w) setWaterGlasses(parseInt(w) || 0);
     import("@/lib/supabase").then(({ supabase }) => {
       supabase.from("day_confirmed")
@@ -1269,7 +1249,7 @@ export default function TrackerPage() {
         .then(({ data }) => {
           if (data) {
             setDayConfirmed(true);
-            localStorage.setItem(`dayConfirmed:${userId}`, today);
+            lsSet(`dayConfirmed:${userId}`, today);
           }
         });
     });
@@ -1280,14 +1260,14 @@ export default function TrackerPage() {
     setDayConfirmed(next);
     const { supabase } = await import("@/lib/supabase");
     if (next) {
-      localStorage.setItem(`dayConfirmed:${userId}`, today);
+      lsSet(`dayConfirmed:${userId}`, today);
       await supabase.from("day_confirmed").upsert({
         profile_id: userId,
         date: today,
         confirmed_at: new Date().toISOString(),
       }, { onConflict: "profile_id,date" });
     } else {
-      localStorage.removeItem(`dayConfirmed:${userId}`);
+      lsRemove(`dayConfirmed:${userId}`);
       await supabase.from("day_confirmed")
         .delete()
         .eq("profile_id", userId)
@@ -1295,12 +1275,11 @@ export default function TrackerPage() {
     }
   };
 
-  // #46 — load saved notification time and current permission on mount
   useEffect(() => {
     if (typeof Notification !== "undefined") {
       setNotifPermission(Notification.permission);
     }
-    const saved = localStorage.getItem(`caloriq-notif-time-${userId}`);
+    const saved = lsGet(`caloriq-notif-time-${userId}`);
     if (saved) setNotifTime(saved);
   }, [userId]);
 
@@ -1310,7 +1289,6 @@ export default function TrackerPage() {
       if (!p) { router.push("/"); return; }
       setProfile(p);
       setReady(true);
-      // #33 — show onboarding if never completed
       if (!p.onboarded_at) setShowOnboarding(true);
       getMeals(userId).then(ms => setMeals(ms)).catch(() => {});
       getMeals30Days(userId).then(ms => setHistoryMeals(ms)).catch(() => {});
@@ -1325,12 +1303,9 @@ export default function TrackerPage() {
     }
   }, [tab]);
 
-  // #42 — Insights only on explicit button press. No auto-fetch.
-
   const todayMeals = useMemo(() => meals.filter(m => m.meal_date === today), [meals, today]);
   const totals = useMemo(() => sumMacros(todayMeals), [todayMeals]);
 
-  // #30 — personalized goals from BMR, fallback to constants
   const calorieGoal = useMemo(() => calcCalorieGoal({
     weight_kg: profile?.weight_kg ?? null,
     height_cm: profile?.height_cm ?? null,
@@ -1341,7 +1316,6 @@ export default function TrackerPage() {
   }) ?? DAILY_GOAL, [profile]);
   const proteinGoal = useMemo(() => calcProteinGoal(profile?.weight_kg ?? null), [profile]);
 
-  // #47 — compute yesterday's deficit as rollover bonus (capped at 20% of goal)
   useEffect(() => {
     if (!rolloverEnabled) { setRolloverCalories(0); return; }
     const yesterday = new Date();
@@ -1352,18 +1326,17 @@ export default function TrackerPage() {
     setRolloverCalories(Math.min(deficit, Math.round(calorieGoal * 0.2)));
   }, [rolloverEnabled, meals, calorieGoal]);
 
-  // #62 — show "did you forget to log?" nudge if breakfast logged but nothing after 7pm
   useEffect(() => {
     if (todayMeals.length === 0) return;
     const hour = new Date().getHours();
-    if (hour < 19) return; // only after 7pm
+    if (hour < 19) return;
     const lastMealTime = Math.max(...todayMeals.map(m => new Date(m.meal_time || m.logged_at).getTime()));
     const hoursSinceLast = (Date.now() - lastMealTime) / 3_600_000;
-    if (hoursSinceLast >= 4 && !localStorage.getItem(`nudge:${userId}:${today}`)) {
+    if (hoursSinceLast >= 4 && !lsGet(`nudge:${userId}:${today}`)) {
       setShowForgotNudge(true);
     }
   }, [todayMeals, userId, today]);
-  // Build set of confirmed dates from localStorage for WeeklyCard
+
   const confirmedDates = useMemo(() => {
     const last7 = getLast7Days();
     const set = new Set<string>();
@@ -1371,11 +1344,11 @@ export default function TrackerPage() {
       const isToday = date === today;
       const confirmed = isToday
         ? dayConfirmed
-        : localStorage.getItem(`dayConfirmed:${userId}:${date}`) === "true";
+        : lsGet(`dayConfirmed:${userId}:${date}`) === "true";
       if (confirmed) set.add(date);
     }
     return set;
-  }, [userId, today, dayConfirmed, meals]); // meals in deps so it re-runs after logging
+  }, [userId, today, dayConfirmed, meals]);
 
   const streak = useMemo(() => {
     const loggedDates = new Set([
@@ -1399,7 +1372,6 @@ export default function TrackerPage() {
     imgUrl?: string, mealType?: MealType, mealTime?: Date,
   ) => {
     const mt = mealTime ?? pendingMealTime;
-    // Use local date components to avoid UTC timezone shift
     const mealDate = [
       mt.getFullYear(),
       String(mt.getMonth() + 1).padStart(2, "0"),
@@ -1418,10 +1390,9 @@ export default function TrackerPage() {
     }
     setPreview(null); setPendingFile(null); setTextInput("");
     setClar(null); setPendingB64(null); setPendingMime(null);
-    // #47 — show rollover prompt once ever
-    if (!localStorage.getItem("caloriq-rollover-asked")) {
+    if (!lsGet("caloriq-rollover-asked")) {
       setShowRolloverPrompt(true);
-      localStorage.setItem("caloriq-rollover-asked", "true");
+      lsSet("caloriq-rollover-asked", "true");
     }
     setTab(mealDate === today ? "today" : "history");
   }, [userId, today, pendingMealType, pendingMealTime]);
@@ -1437,7 +1408,6 @@ export default function TrackerPage() {
     setHistoryMeals(prev => prev.map(m => m.id === id ? updated : m));
   }, []);
 
-  // #33 — Onboarding complete
   const handleOnboardingComplete = async (stats: {
     weight_kg: number | null; height_cm: number | null;
     age: number | null; gender: string;
@@ -1463,15 +1433,13 @@ export default function TrackerPage() {
         onboarded_at: new Date().toISOString(),
       } : p);
     } catch {
-      // non-blocking — still dismiss
+      // non-blocking
     }
     setShowOnboarding(false);
   };
 
-  // #25 — Weekly diet insights via Claude API
   const fetchInsights = async (opts?: { silent?: boolean }) => {
     if (insightsFetchedFor === today) {
-      // Already fetched today — just show
       if (!opts?.silent) setShowInsights(true);
       return;
     }
@@ -1481,7 +1449,6 @@ export default function TrackerPage() {
     try {
       const last7 = getLast7Days();
       const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
-      // Only include days the user confirmed as fully logged
       const mealSummary = last7.map(date => {
         const dayMeals = weekMeals.filter(m => m.meal_date === date);
         const isConfirmed = confirmedDates.has(date);
@@ -1508,7 +1475,6 @@ export default function TrackerPage() {
       const text = res.insights ?? res.error ?? "Couldn't generate insights right now.";
       setInsightsText(text);
       setInsightsFetchedFor(today);
-      // On Sunday auto-fetch, open the card automatically
       if (opts?.silent) setShowInsights(true);
     } catch {
       setInsightsText("Couldn't generate insights right now. Try again later.");
@@ -1518,7 +1484,6 @@ export default function TrackerPage() {
     }
   };
 
-  // #18 — Diet analysis report
   const fetchDietReport = async () => {
     setDietReportLoading(true);
     setShowDietReport(true);
@@ -1526,7 +1491,6 @@ export default function TrackerPage() {
     try {
       const last7 = getLast7Days();
       const weekMeals = historyMeals.filter(m => last7.includes(m.meal_date));
-      // Only include days the user confirmed as fully logged
       const mealSummary = last7.map(date => {
         const dayMeals = weekMeals.filter(m => m.meal_date === date);
         const isConfirmed = confirmedDates.has(date);
@@ -1555,7 +1519,6 @@ export default function TrackerPage() {
     }
   };
 
-  // #28 — Re-analyze meal with user feedback
   const handleMealFeedback = async () => {
     if (!feedbackMeal || !mealFeedbackText.trim()) return;
     setMealFeedbackSaving(true);
@@ -1586,7 +1549,6 @@ export default function TrackerPage() {
     }
   };
 
-  // #46 — Request notification permission and schedule daily reminder
   const requestNotifPermission = async () => {
     if (typeof Notification === "undefined") return;
     const result = await Notification.requestPermission();
@@ -1595,9 +1557,8 @@ export default function TrackerPage() {
   };
 
   const scheduleNotification = (time: string) => {
-    localStorage.setItem(`caloriq-notif-time-${userId}`, time);
+    lsSet(`caloriq-notif-time-${userId}`, time);
     setNotifTime(time);
-    // Register with service worker if available
     if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
       navigator.serviceWorker.controller.postMessage({
         type: "SCHEDULE_DAILY_REMINDER",
@@ -1622,16 +1583,15 @@ export default function TrackerPage() {
     router.push("/");
   };
 
-  // #34 — Dark mode toggle
   const toggleDark = () => {
     const next = !isDark;
     setIsDark(next);
     if (next) {
       document.documentElement.classList.add("dark");
-      localStorage.setItem("caloriq-theme", "dark");
+      lsSet("caloriq-theme", "dark");
     } else {
       document.documentElement.classList.remove("dark");
-      localStorage.setItem("caloriq-theme", "light");
+      lsSet("caloriq-theme", "light");
     }
   };
 
@@ -1654,7 +1614,6 @@ export default function TrackerPage() {
     setClar(null); setError(""); setTextInput("");
   };
 
-  // ── Stripe upgrade ────────────────────────────────────────────────────────
   const [upgrading, setUpgrading] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
   const [showFeedback, setShowFeedback] = useState(false);
@@ -1689,7 +1648,6 @@ export default function TrackerPage() {
         age: bodyStats.age ? parseInt(bodyStats.age) : null,
         gender: (bodyStats.gender as "male" | "female" | "other") || null,
       });
-      // Save activity_level and goal_type via supabase directly
       const { supabase: sb } = await import("@/lib/supabase");
       await sb.from("profiles").update({
         activity_level: bodyStats.activity_level || null,
@@ -1723,7 +1681,6 @@ export default function TrackerPage() {
       setFeedbackMsg("");
       setTimeout(() => { setShowFeedback(false); setFeedbackSent(false); }, 2000);
     } catch {
-      // still close gracefully
       setFeedbackSent(true);
       setTimeout(() => { setShowFeedback(false); setFeedbackSent(false); }, 2000);
     } finally {
@@ -1793,12 +1750,6 @@ export default function TrackerPage() {
     }
   };
 
-  // ── AI analysis ───────────────────────────────────────────────────────────
-  // Single call into /api/analyze. The endpoint returns EITHER:
-  //   - { needsClarification: true, question, options }  → show question (only on first pass)
-  //   - { limitReached: true, ... }                       → show upgrade modal
-  //   - { error: "..." }                                   → show friendly error
-  //   - the full nutrition result                          → log the meal
   const runFinal = async (
     text: string, mode: string, clar: string | null,
     b64: string | null, mime: string | null,
@@ -1811,9 +1762,6 @@ export default function TrackerPage() {
         body: JSON.stringify({ mode, text, base64: b64, mimeType: mime, clarification: clar, profileId: userId }),
       }).then(r => r.json());
 
-      // Clarification: only returned on the first pass (when clar === null).
-      // The backend enforces "never ask twice" once a clarification is provided,
-      // so this branch cannot loop.
       if (result.needsClarification) {
         setClar({ question: result.question, options: result.options ?? [] });
         return;
@@ -1840,7 +1788,6 @@ export default function TrackerPage() {
   };
 
   const startAnalysis = async () => {
-    // Fully reset before each attempt so stale error/clarification state never lingers
     setLoading(true); setError(""); setClar(null); setPendingB64(null); setPendingMime(null);
     pendingImageRef.current = null;
     try {
@@ -1848,12 +1795,9 @@ export default function TrackerPage() {
       if (inputMode !== "text" && pendingFile) {
         const r = await readFileAsBase64(pendingFile);
         b64 = r.base64; mime = r.mimeType;
-        // store in ref synchronously so clarification answer buttons
-        // always have the image data regardless of React's async state flush
         pendingImageRef.current = { b64, mime };
         setPendingB64(b64); setPendingMime(mime);
       }
-      // Single call: /api/analyze returns EITHER a clarification request OR the result.
       await runFinal(textInput, inputMode, null, b64, mime);
     } catch (e: any) {
       const msg = e?.message ?? "";
@@ -1888,12 +1832,10 @@ export default function TrackerPage() {
   return (
     <div className="max-w-md mx-auto px-4 pb-16 pt-4">
 
-      {/* #33 — Onboarding for new users */}
       {showOnboarding && profile && (
         <OnboardingFlow profile={profile} onComplete={handleOnboardingComplete} />
       )}
 
-      {/* Pro upgrade success banner */}
       {justUpgraded && (
         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-2xl p-4 mb-4 flex items-center gap-3">
           <span className="text-2xl">🎉</span>
@@ -1904,7 +1846,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Header */}
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-2">
           <img src="/icons/icon-192.png" alt="Caloriq" className="w-8 h-8 rounded-xl" />
@@ -1931,7 +1872,6 @@ export default function TrackerPage() {
         </div>
       </div>
 
-      {/* Pro badge if user is pro */}
       {profile?.is_pro && (
         <div className="flex items-center gap-1.5 mb-3">
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 border border-blue-200 dark:border-blue-800">
@@ -1941,7 +1881,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Daily summary */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-4 mb-3">
           <CalorieRing eaten={totals.calories} goal={calorieGoal} />
@@ -1969,14 +1908,12 @@ export default function TrackerPage() {
             {rolloverCalories > 0 && (
               <p className="text-[10px] text-emerald-500 mt-1.5">+{rolloverCalories} kcal rolled over from yesterday</p>
             )}
-            {/* Streak row */}
             <div className="mt-2 flex items-center gap-1">
               <span className="text-sm">{streak > 1 ? "🔥" : "⭐"}</span>
               <span className="text-xs font-semibold" style={{ color: streak > 1 ? "#f97316" : "#9ca3af" }}>
                 {streak > 0 ? `${streak}-day streak` : "Log today to start a streak!"}
               </span>
             </div>
-            {/* Action buttons row */}
             {totals.calories > 0 && (
               <div className="mt-2 flex gap-2">
                 <button onClick={() => setShowShareCard(true)}
@@ -1992,7 +1929,6 @@ export default function TrackerPage() {
           </div>
         </div>
 
-        {/* #22 — Water tracker */}
         <div className="flex items-center justify-between bg-gray-50 dark:bg-zinc-800 rounded-xl px-3 py-2 mb-2">
           <div className="flex items-center gap-2">
             <span className="text-base">💧</span>
@@ -2005,7 +1941,7 @@ export default function TrackerPage() {
             <button onClick={() => {
               const next = Math.max(0, waterGlasses - 1);
               setWaterGlasses(next);
-              localStorage.setItem(`water:${userId}:${today}`, String(next));
+              lsSet(`water:${userId}:${today}`, String(next));
             }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">−</button>
             <div className="flex gap-0.5">
               {Array.from({ length: 8 }).map((_, i) => (
@@ -2015,12 +1951,11 @@ export default function TrackerPage() {
             <button onClick={() => {
               const next = Math.min(8, waterGlasses + 1);
               setWaterGlasses(next);
-              localStorage.setItem(`water:${userId}:${today}`, String(next));
+              lsSet(`water:${userId}:${today}`, String(next));
             }} className="w-7 h-7 rounded-lg bg-white dark:bg-zinc-700 border border-gray-200 dark:border-zinc-600 flex items-center justify-center text-gray-400 hover:text-gray-600 text-sm font-medium">+</button>
           </div>
         </div>
 
-        {/* #25 — Weekly insights button */}
         <div className="flex gap-2">
           <button onClick={() => fetchInsights()}
             className="flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border border-gray-200 dark:border-zinc-700 text-xs text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
@@ -2033,7 +1968,6 @@ export default function TrackerPage() {
         </div>
       </div>
 
-      {/* #25 — Persistent weekly card (Option D) — always visible, expands to AI analysis */}
       <WeeklyCard
         meals={historyMeals}
         calorieGoal={calorieGoal}
@@ -2048,7 +1982,6 @@ export default function TrackerPage() {
         }}
       />
 
-      {/* Charts */}
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
         <div className="flex gap-2 mb-3">
           {(["calories", "protein"] as ChartType[]).map(t => (
@@ -2063,9 +1996,7 @@ export default function TrackerPage() {
         {showAnalytics && <AnalyticsTable meals={meals} onClose={() => setShowAnalytics(false)} />}
       </div>
 
-      {/* Tabs */}
       <div className="flex gap-2 mb-4 items-center">
-        {/* Prominent Log button */}
         <button onClick={() => setTab("add")}
           className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all shadow-sm"
           style={{
@@ -2087,7 +2018,6 @@ export default function TrackerPage() {
         </div>
       </div>
 
-      {/* Today */}
       {tab === "today" && (
         <div>
           {todayMeals.length === 0
@@ -2102,7 +2032,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Add meal */}
       {tab === "add" && (
         <div>
           <p className="text-xs font-medium text-gray-400 mb-2">Add new</p>
@@ -2241,7 +2170,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* History */}
       {tab === "history" && (() => {
         const grouped = historyMeals.reduce<Record<string, Meal[]>>((acc, m) => {
           acc[m.meal_date] = acc[m.meal_date] || []; acc[m.meal_date].push(m); return acc;
@@ -2259,17 +2187,16 @@ export default function TrackerPage() {
               ? <div className="text-center py-10 text-gray-400 text-sm">No history yet.</div>
               : Object.entries(grouped).sort((a, b) => b[0].localeCompare(a[0])).map(([date, dayMeals]) => {
                   const dt = sumMacros(dayMeals);
-                  // #61 — per-date confirmed state
                   const isDateToday = date === today;
                   const dateConfirmed = isDateToday
                     ? dayConfirmed
-                    : localStorage.getItem(`dayConfirmed:${userId}:${date}`) === "true";
+                    : lsGet(`dayConfirmed:${userId}:${date}`) === "true";
                   const toggleDateConfirmed = () => {
                     if (isDateToday) { toggleDayConfirmed(); return; }
-                    const cur = localStorage.getItem(`dayConfirmed:${userId}:${date}`);
-                    if (cur === "true") localStorage.removeItem(`dayConfirmed:${userId}:${date}`);
-                    else localStorage.setItem(`dayConfirmed:${userId}:${date}`, "true");
-                    setMeals(prev => [...prev]); // force re-render
+                    const cur = lsGet(`dayConfirmed:${userId}:${date}`);
+                    if (cur === "true") lsRemove(`dayConfirmed:${userId}:${date}`);
+                    else lsSet(`dayConfirmed:${userId}:${date}`, "true");
+                    setMeals(prev => [...prev]);
                   };
                   return (
                     <div key={date} className="mb-5">
@@ -2289,7 +2216,6 @@ export default function TrackerPage() {
         );
       })()}
 
-      {/* Feedback modal */}
       {showFeedback && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
@@ -2328,7 +2254,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Avatar picker for non-Google users */}
       {showAvatarPicker && !profile?.photo_url && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
@@ -2350,7 +2275,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Feedback button */}
       <div className="mt-6 mb-2 text-center">
         <button onClick={() => setShowFeedback(true)}
           className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
@@ -2358,7 +2282,6 @@ export default function TrackerPage() {
         </button>
       </div>
 
-      {/* #24 — Share day summary card */}
       {showShareCard && (
         <ShareDaySummaryCard
           name={profile?.name ?? ""}
@@ -2373,7 +2296,6 @@ export default function TrackerPage() {
         />
       )}
 
-      {/* Upgrade modal */}
       {showUpgrade && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-6 max-w-sm w-full shadow-xl">
@@ -2439,7 +2361,6 @@ export default function TrackerPage() {
           </div>
         </div>
       )}
-      {/* #46 — Notification settings modal */}
       {showNotifSettings && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 px-4">
           <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 max-w-sm w-full shadow-xl">
@@ -2473,7 +2394,7 @@ export default function TrackerPage() {
                   </button>
                 </div>
                 <button onClick={() => {
-                  localStorage.removeItem(`caloriq-notif-time-${userId}`);
+                  lsRemove(`caloriq-notif-time-${userId}`);
                   if ("serviceWorker" in navigator && navigator.serviceWorker.controller) {
                     navigator.serviceWorker.controller.postMessage({ type: "CANCEL_REMINDER", userId });
                   }
@@ -2509,7 +2430,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* Footer */}
       <div className="mt-6 mb-4 space-y-2">
         <div className="flex items-center justify-center gap-6 flex-wrap">
           <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "", activity_level: profile?.activity_level ?? "", goal_type: profile?.goal_type ?? "" }); setShowBodyStats(true); }}
@@ -2519,24 +2439,20 @@ export default function TrackerPage() {
           <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">🔒 Privacy</a>
           <a href="/terms" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">📄 Terms</a>
           <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">👤 My account</a>
-          {/* #34 — Dark mode toggle */}
           <button onClick={toggleDark} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             {isDark ? "☀️ Light mode" : "🌙 Dark mode"}
           </button>
-          {/* #47 — Rollover toggle */}
           <button onClick={() => {
             const next = !rolloverEnabled;
             setRolloverEnabled(next);
-            localStorage.setItem(`caloriq-rollover-${userId}`, String(next));
+            lsSet(`caloriq-rollover-${userId}`, String(next));
           }} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             {rolloverEnabled ? "🔄 Rollover: on" : "🔄 Rollover: off"}
           </button>
-          {/* #46 — Notification reminder toggle */}
           <button onClick={() => setShowNotifSettings(true)}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             {notifPermission === "granted" ? "🔔 Reminder set" : "🔔 Set reminder"}
           </button>
-          {/* #13 — Extended nutrition page */}
           <a href={`/${userId}/nutrition`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             📊 Nutrition details
           </a>
@@ -2551,9 +2467,7 @@ export default function TrackerPage() {
         )}
       </div>
 
-      {/* Body stats modal */}
       {showBodyStats && (() => {
-        // Display values in selected unit
         const weightDisplay = useImperial && bodyStats.weight_kg
           ? String(Math.round(parseFloat(bodyStats.weight_kg) * 2.2046 * 10) / 10)
           : bodyStats.weight_kg;
@@ -2568,7 +2482,6 @@ export default function TrackerPage() {
               <div className="flex items-center justify-between mb-4">
                 <p className="font-medium text-sm">My stats</p>
                 <div className="flex items-center gap-2">
-                  {/* Unit toggle */}
                   <div className="flex bg-gray-100 dark:bg-zinc-800 rounded-lg p-0.5 text-xs">
                     <button onClick={() => setUseImperial(false)}
                       className="px-2 py-1 rounded-md transition-all"
@@ -2644,7 +2557,6 @@ export default function TrackerPage() {
                     </select>
                   </div>
                 </div>
-                {/* #63 — Activity level and goal */}
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <label className="text-xs text-gray-400 mb-1 block">Activity level</label>
@@ -2682,7 +2594,6 @@ export default function TrackerPage() {
         );
       })()}
 
-      {/* #62 — Forgot to log nudge */}
       {showForgotNudge && (
         <div className="fixed bottom-4 left-4 right-4 z-40 max-w-md mx-auto">
           <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3">
@@ -2692,16 +2603,15 @@ export default function TrackerPage() {
               <p className="text-xs text-gray-400">Looks like you haven't logged anything in a while.</p>
             </div>
             <div className="flex gap-2 flex-shrink-0">
-              <button onClick={() => { setTab("add"); setShowForgotNudge(false); localStorage.setItem(`nudge:${userId}:${today}`, "1"); }}
+              <button onClick={() => { setTab("add"); setShowForgotNudge(false); lsSet(`nudge:${userId}:${today}`, "1"); }}
                 className="text-xs bg-indigo-500 text-white px-3 py-1.5 rounded-xl font-medium">Log now</button>
-              <button onClick={() => { setShowForgotNudge(false); localStorage.setItem(`nudge:${userId}:${today}`, "1"); }}
+              <button onClick={() => { setShowForgotNudge(false); lsSet(`nudge:${userId}:${today}`, "1"); }}
                 className="text-xs text-gray-400 px-2 py-1.5">✕</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* #28 — Meal calorie feedback modal */}
       {feedbackMeal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-5 w-full max-w-sm shadow-xl">
@@ -2730,7 +2640,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* #18 — Diet analysis report modal */}
       {showDietReport && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl w-full max-w-sm shadow-xl overflow-hidden">
@@ -2760,7 +2669,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      {/* #47 — Rollover prompt modal */}
       {showRolloverPrompt && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center p-4">
           <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-6 w-full max-w-sm shadow-xl">
@@ -2770,7 +2678,7 @@ export default function TrackerPage() {
             </p>
             <div className="flex gap-3">
               <button onClick={() => {
-                localStorage.setItem(`caloriq-rollover-${userId}`, "true");
+                lsSet(`caloriq-rollover-${userId}`, "true");
                 setRolloverEnabled(true);
                 setShowRolloverPrompt(false);
               }} className="flex-1 bg-emerald-500 text-white rounded-xl py-3 text-sm font-medium">
