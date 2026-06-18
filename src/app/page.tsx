@@ -6,7 +6,7 @@ import { supabase } from "@/lib/supabase";
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
   const [error, setError] = useState("");
 
@@ -30,22 +30,51 @@ function HomeContent() {
     const err = searchParams.get("error");
     if (err) setError("Sign in failed. Please try again.");
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      log(`getSession returned: session=${!!session}`);
-      if (session?.user) {
-        const { data: profile } = await supabase
+    // Hard timeout: never block the UI on session check for more than 3s.
+    // If getSession or profile lookup hangs, the user still sees the sign-in
+    // button and can re-authenticate.
+    const timeout = setTimeout(() => {
+      log("session check timed out after 3s — showing login UI anyway");
+      setChecking(false);
+    }, 3000);
+
+    (async () => {
+      try {
+        log("calling supabase.auth.getSession()");
+        const { data: { session } } = await supabase.auth.getSession();
+        log(`getSession returned: session=${!!session}`);
+        if (!session?.user) {
+          clearTimeout(timeout);
+          setChecking(false);
+          return;
+        }
+
+        log("session found, looking up profile");
+        const { data: profile, error: profErr } = await supabase
           .from("profiles")
           .select("id")
           .eq("user_id", session.user.id)
           .single();
+
+        if (profErr) log(`profile lookup error: ${profErr.message}`);
+
         if (profile) {
           log(`have profile, redirecting to /${profile.id}`);
+          clearTimeout(timeout);
           router.push(`/${profile.id}`);
           return;
         }
+
+        clearTimeout(timeout);
+        setChecking(false);
+      } catch (e: any) {
+        log(`session check threw: ${e?.message ?? e}`);
+        clearTimeout(timeout);
+        setChecking(false);
       }
-      setLoading(false);
-    });
+    })();
+
+    return () => clearTimeout(timeout);
   }, [router, searchParams]);
 
   const isNative = (): boolean => {
@@ -192,14 +221,6 @@ function HomeContent() {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <p className="text-gray-400">Loading…</p>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-md mx-auto px-4 py-12">
       <div className="text-center mb-10">
@@ -243,6 +264,13 @@ function HomeContent() {
         </span>
       </button>
 
+      {/* Tiny background-checking indicator (doesn't block UI) */}
+      {checking && (
+        <p className="text-center text-xs text-gray-300 mt-3">
+          Checking for existing session…
+        </p>
+      )}
+
       <p className="text-center text-xs text-gray-400 mt-4">
         Your data syncs across all your devices
       </p>
@@ -264,4 +292,7 @@ export default function Home() {
       <HomeContent />
     </Suspense>
   );
-}
+}cd C:\Users\lkasp\nutrisnap
+git add src/app/page.tsx public/sw.js
+git commit -m "fix: non-blocking login page, bump sw cache"
+git push
