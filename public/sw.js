@@ -1,4 +1,4 @@
-const CACHE_NAME = 'caloriq-v5';
+const CACHE_NAME = 'caloriq-v6';
 const STATIC_ASSETS = [
   '/',
   '/icons/icon-192.png',
