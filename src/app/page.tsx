@@ -292,7 +292,4 @@ export default function Home() {
       <HomeContent />
     </Suspense>
   );
-}cd C:\Users\lkasp\nutrisnap
-git add src/app/page.tsx public/sw.js
-git commit -m "fix: non-blocking login page, bump sw cache"
-git push
+}
