@@ -1950,6 +1950,8 @@ export default function TrackerPage() {
         </div>
       )}
 
+      {tab === "today" && (
+      <>
       <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl p-4 mb-4">
         <div className="flex items-center gap-4 mb-3">
           <CalorieRing eaten={totals.calories} goal={calorieGoal} />
@@ -2065,8 +2067,7 @@ export default function TrackerPage() {
         {showAnalytics && <AnalyticsTable meals={meals} onClose={() => setShowAnalytics(false)} />}
       </div>
 
-      {tab === "today" && (
-        <div>
+      <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Today's meals</p>
           {todayMeals.length === 0
             ? <div className="text-center py-10 text-gray-400 text-sm">
@@ -2078,6 +2079,7 @@ export default function TrackerPage() {
             <DayLoggedButton confirmed={dayConfirmed} onToggle={toggleDayConfirmed} />
           )}
         </div>
+      </>
       )}
 
       {tab === "add" && (
@@ -2769,7 +2771,7 @@ export default function TrackerPage() {
         <NavButton icon={HomeIcon}    label="Today"   active={tab === "today"}   onClick={() => setTab("today")} />
         <NavButton icon={HistoryIcon} label="History" active={tab === "history"} onClick={() => setTab("history")} />
         <div className="flex justify-center">
-          <button onClick={() => setTab("add")}
+          <button onClick={() => { resetAdd(); setTab("add"); }}
             className="w-14 h-14 -translate-y-3 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
             style={{ background: "linear-gradient(135deg,#7F77DD,#5b54c4)" }}
             aria-label="Add meal">
