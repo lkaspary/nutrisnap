@@ -10,6 +10,12 @@ import {
   fmtShort, fmtWeek, fmtMonth, getWeekStart,
   DAILY_GOAL, PROTEIN_GOAL, calcCalorieGoal, calcProteinGoal,
 } from "@/lib/utils";
+import {
+  Home as HomeIcon, History as HistoryIcon, Plus, BarChart3, User,
+  UtensilsCrossed, Tag, Pencil,
+  Scale, Bell, Moon, Sun, RefreshCw, CreditCard, MessageSquare,
+  Shield, FileText, LogOut, ChevronRight,
+} from "lucide-react";
 
 // ── SSR-safe localStorage helpers ────────────────────────────────────────────
 // During Next.js server rendering, `window` is undefined and direct localStorage
@@ -27,6 +33,12 @@ function lsSet(key: string, value: string): void {
 function lsRemove(key: string): void {
   if (!isBrowser()) return;
   try { window.localStorage.removeItem(key); } catch {}
+}
+
+// Detects when running inside the Capacitor native Android/iOS shell.
+function isNativeApp(): boolean {
+  if (!isBrowser()) return false;
+  return !!(window as any).Capacitor?.isNativePlatform?.();
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -717,14 +729,14 @@ function FoodSearch({ meals, onRelog, userId }: { meals: Meal[]; onRelog: (m: Me
       <div className="flex items-center"
         style={{ borderBottom: i < total - 1 ? "1px solid #e5e7eb" : "none" }}>
         <button onClick={() => onRelog(m)}
-          className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 text-left transition-colors">
-          <div>
-            <p className="text-sm font-medium">{m.name}</p>
-            <p className="text-xs text-gray-400">P: {m.protein}g · C: {m.carbs}g · F: {m.fat}g</p>
+          className="flex-1 flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-zinc-800 text-left transition-colors min-w-0 gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium truncate">{m.name}</p>
+            <p className="text-xs text-gray-400 truncate">P: {m.protein}g · C: {m.carbs}g · F: {m.fat}g</p>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium" style={{ color: "var(--cal)" }}>{m.calories} kcal</span>
-            <span className="text-xs text-blue-500 font-medium">+ Add</span>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <span className="text-sm font-medium whitespace-nowrap" style={{ color: "var(--cal)" }}>{m.calories} kcal</span>
+            <span className="text-xs text-blue-500 font-medium whitespace-nowrap">+ Add</span>
           </div>
         </button>
         <button onClick={() => toggleFav(m)}
@@ -1163,6 +1175,27 @@ function MacroRatioBar({ protein, carbs, fat }: { protein: number; carbs: number
   );
 }
 
+// ── NavButton (bottom nav) ────────────────────────────────────────────────────
+function NavButton({ icon: Icon, label, active, onClick }: { icon: any; label: string; active?: boolean; onClick: () => void; }) {
+  return (
+    <button onClick={onClick} className="flex flex-col items-center justify-center gap-0.5 py-1.5 transition-colors" style={{ color: active ? "#7F77DD" : "#9ca3af" }}>
+      <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
+      <span className="text-[10px]" style={{ fontWeight: active ? 600 : 500 }}>{label}</span>
+    </button>
+  );
+}
+
+// ── MenuItem (profile sheet) ──────────────────────────────────────────────────
+function MenuItem({ icon: Icon, label, onClick, danger, right }: { icon: any; label: string; onClick: () => void; danger?: boolean; right?: React.ReactNode; }) {
+  return (
+    <button onClick={onClick} className="w-full flex items-center gap-3 px-6 py-3 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors text-left">
+      <Icon className="w-5 h-5 flex-shrink-0" style={{ color: danger ? "#E24B4A" : "#6b7280" }} strokeWidth={2} />
+      <span className="flex-1 text-sm" style={{ color: danger ? "#E24B4A" : undefined, fontWeight: danger ? 600 : 500 }}>{label}</span>
+      {right ?? <ChevronRight className="w-4 h-4 text-gray-300 flex-shrink-0" />}
+    </button>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function TrackerPage() {
   const router = useRouter();
@@ -1222,6 +1255,9 @@ export default function TrackerPage() {
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>("default");
   const [showNotifSettings, setShowNotifSettings] = useState(false);
   const [notifTime, setNotifTime] = useState("20:00");
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
   const today = todayISO();
 
   useEffect(() => {
@@ -1274,6 +1310,39 @@ export default function TrackerPage() {
         .eq("date", today);
     }
   };
+
+  // FIX #3 — Capacitor Android hardware back button.
+  // Closes the topmost open modal first; if nothing is open, minimizes the app
+  // (instead of killing it). Only registers inside the native shell, so web/PWA
+  // users get normal browser back behaviour.
+  useEffect(() => {
+    if (!isNativeApp()) return;
+    let listener: any = null;
+    (async () => {
+      try {
+        const { App } = await import("@capacitor/app");
+        listener = await App.addListener("backButton", () => {
+          if (showProfileMenu)     { setShowProfileMenu(false); return; }
+          if (showShareCard)       { setShowShareCard(false); return; }
+          if (showUpgrade)         { setShowUpgrade(false); return; }
+          if (showFeedback)        { setShowFeedback(false); return; }
+          if (showAvatarPicker)    { setShowAvatarPicker(false); return; }
+          if (showNotifSettings)   { setShowNotifSettings(false); return; }
+          if (showBodyStats)       { setShowBodyStats(false); return; }
+          if (feedbackMeal)        { setFeedbackMeal(null); return; }
+          if (showDietReport)      { setShowDietReport(false); return; }
+          if (showRolloverPrompt)  { setShowRolloverPrompt(false); return; }
+          if (showForgotNudge)     { setShowForgotNudge(false); return; }
+          if (showAnalytics)       { setShowAnalytics(false); return; }
+          if (showOnboarding)      { return; } // onboarding isn't dismissible
+          App.minimizeApp();
+        });
+      } catch {}
+    })();
+    return () => { listener?.remove?.(); };
+  }, [showProfileMenu, showShareCard, showUpgrade, showFeedback, showAvatarPicker,
+      showNotifSettings, showBodyStats, feedbackMeal, showDietReport,
+      showRolloverPrompt, showForgotNudge, showAnalytics, showOnboarding]);
 
   useEffect(() => {
     if (typeof Notification !== "undefined") {
@@ -1595,6 +1664,12 @@ export default function TrackerPage() {
     }
   };
 
+  const toggleRollover = () => {
+    const next = !rolloverEnabled;
+    setRolloverEnabled(next);
+    lsSet(`caloriq-rollover-${userId}`, String(next));
+  };
+
   const handleRelog = useCallback((m: Meal) => {
     handleAddMeal({
       name: m.name, calories: m.calories, protein: m.protein,
@@ -1615,8 +1690,6 @@ export default function TrackerPage() {
   };
 
   const [upgrading, setUpgrading] = useState(false);
-  const [showAvatarPicker, setShowAvatarPicker] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
   const [feedbackMsg, setFeedbackMsg] = useState("");
   const [feedbackSending, setFeedbackSending] = useState(false);
   const [feedbackSent, setFeedbackSent] = useState(false);
@@ -1807,9 +1880,9 @@ export default function TrackerPage() {
   };
 
   const modeConfig = {
-    meal:   { icon: "🍽️", label: "Meal photo" },
-    label:  { icon: "🏷️", label: "Nutrition label" },
-    text:   { icon: "✏️", label: "Describe it" },
+    meal:  { Icon: UtensilsCrossed, label: "Meal photo" },
+    label: { Icon: Tag,             label: "Nutrition label" },
+    text:  { Icon: Pencil,          label: "Describe it" },
   } as const;
 
   if (!ready) return (
@@ -1830,7 +1903,8 @@ export default function TrackerPage() {
   const canSubmit = pendingFile || textInput.trim().length > 0;
 
   return (
-    <div className="max-w-md mx-auto px-4 pb-16 pt-4">
+    <>
+    <div className="max-w-md mx-auto px-4 pt-4" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}>
 
       {showOnboarding && profile && (
         <OnboardingFlow profile={profile} onComplete={handleOnboardingComplete} />
@@ -1855,19 +1929,14 @@ export default function TrackerPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          {!profile!.photo_url && (
-            <button onClick={() => setShowAvatarPicker(p => !p)}
-              className="w-9 h-9 rounded-full flex items-center justify-center text-xl border-2 border-gray-200 dark:border-zinc-700"
-              style={{ background: profile!.avatar_bg }}>{profile!.avatar}</button>
-          )}
-          <button onClick={handleSignOut}
-            className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full px-3 py-1.5">
+          <button onClick={() => setShowProfileMenu(true)}
+            className="flex items-center gap-2 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-full pl-1 pr-3 py-1">
             {profile!.photo_url ? (
               <img src={profile!.photo_url} alt={profile!.name} className="w-7 h-7 rounded-full object-cover" />
             ) : (
-              <span className="text-sm font-medium">{profile!.name.split(" ")[0]}</span>
+              <span className="w-7 h-7 rounded-full flex items-center justify-center text-base" style={{ background: profile!.avatar_bg }}>{profile!.avatar}</span>
             )}
-            {profile!.photo_url && <span className="text-sm font-medium">{profile!.name.split(" ")[0]}</span>}
+            <span className="text-sm font-medium">{profile!.name.split(" ")[0]}</span>
           </button>
         </div>
       </div>
@@ -1996,33 +2065,12 @@ export default function TrackerPage() {
         {showAnalytics && <AnalyticsTable meals={meals} onClose={() => setShowAnalytics(false)} />}
       </div>
 
-      <div className="flex gap-2 mb-4 items-center">
-        <button onClick={() => setTab("add")}
-          className="flex items-center gap-1.5 px-4 py-2.5 rounded-2xl text-sm font-semibold transition-all shadow-sm"
-          style={{
-            background: "linear-gradient(135deg,#7F77DD,#5b54c4)",
-            color: "#fff",
-            boxShadow: tab === "add" ? "0 2px 8px rgba(127,119,221,0.45)" : "0 2px 8px rgba(127,119,221,0.45)",
-            minWidth: "90px",
-          }}>
-          <span style={{ fontSize: "1rem", lineHeight: 1 }}>＋</span> Log meal
-        </button>
-        <div className="flex flex-1 gap-1 bg-gray-100 dark:bg-zinc-800 rounded-2xl p-1">
-          {([["today", "Today"], ["history", "History"]] as const).map(([t, l]) => (
-            <button key={t} onClick={() => setTab(t)}
-              className="flex-1 py-2 text-xs rounded-xl transition-all"
-              style={{ background: tab === t ? (isDark ? "#3f3f46" : "#ffffff") : "transparent", fontWeight: tab === t ? 600 : 400, color: tab === t ? (isDark ? "#f4f4f5" : "#111") : "#6b7280" }}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {tab === "today" && (
         <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Today's meals</p>
           {todayMeals.length === 0
             ? <div className="text-center py-10 text-gray-400 text-sm">
-                No meals today.{" "}
+                No meals yet today.{" "}
                 <button onClick={() => setTab("add")} className="text-blue-400">Add one →</button>
               </div>
             : todayMeals.map(m => <MealCard key={m.id} meal={m} onDelete={handleDeleteMeal} onUpdate={handleUpdateMeal} profileId={userId} onFlag={m => { setFeedbackMeal(m); setMealFeedbackText(""); }} />)}
@@ -2036,19 +2084,23 @@ export default function TrackerPage() {
         <div>
           <p className="text-xs font-medium text-gray-400 mb-2">Add new</p>
           <div className="flex gap-2 mb-4">
-            {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => (
+            {(Object.entries(modeConfig) as [typeof inputMode, typeof modeConfig[keyof typeof modeConfig]][]).map(([key, cfg]) => {
+              const ModeIcon = cfg.Icon;
+              const active = inputMode === key;
+              return (
               <button key={key} onClick={() => { setInputMode(key); setPreview(null); setPendingFile(null); setClar(null); setError(""); }}
-                className="flex-1 py-2 px-1 text-xs rounded-xl border transition-colors dark:border-zinc-600"
+                className="flex-1 flex flex-col items-center gap-1 py-2.5 px-1 text-xs rounded-xl border transition-colors dark:border-zinc-600"
                 style={{
-                  background: inputMode === key ? "#ede9ff" : "transparent",
-                  fontWeight: inputMode === key ? 600 : 400,
-                  borderColor: inputMode === key ? "#7F77DD" : undefined,
-                  color: inputMode === key ? "#4f46e5" : "#6b7280",
+                  background: active ? "#ede9ff" : "transparent",
+                  fontWeight: active ? 600 : 400,
+                  borderColor: active ? "#7F77DD" : undefined,
+                  color: active ? "#4f46e5" : "#6b7280",
                 }}>
-                <div className="text-base mb-0.5">{cfg.icon}</div>
-                <span className={inputMode === key ? "text-indigo-600 dark:text-indigo-400" : ""}>{cfg.label}</span>
+                <ModeIcon className="w-5 h-5" strokeWidth={active ? 2.5 : 2} />
+                <span className={active ? "text-indigo-600 dark:text-indigo-400" : ""}>{cfg.label}</span>
               </button>
-            ))}
+              );
+            })}
           </div>
 
           <MealTimeEditor
@@ -2089,7 +2141,7 @@ export default function TrackerPage() {
                   <div onDrop={e => { e.preventDefault(); handleFile(e.dataTransfer.files[0]); }}
                     onDragOver={e => e.preventDefault()}
                     className="border border-dashed border-gray-300 dark:border-zinc-600 rounded-2xl p-6 text-center">
-                    <div className="text-4xl mb-2">{modeConfig[inputMode].icon}</div>
+                    <div className="flex justify-center mb-2">{(() => { const ModeIcon = modeConfig[inputMode].Icon; return <ModeIcon className="w-10 h-10 text-gray-400" strokeWidth={1.5} />; })()}</div>
                     <p className="text-sm font-medium mb-4">
                       {inputMode === "label" ? "Scan nutrition label" : "Upload meal photo"}
                     </p>
@@ -2275,13 +2327,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      <div className="mt-6 mb-2 text-center">
-        <button onClick={() => setShowFeedback(true)}
-          className="inline-flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors">
-          <span>💬</span> Send us a message
-        </button>
-      </div>
-
       {showShareCard && (
         <ShareDaySummaryCard
           name={profile?.name ?? ""}
@@ -2430,43 +2475,6 @@ export default function TrackerPage() {
         </div>
       )}
 
-      <div className="mt-6 mb-4 space-y-2">
-        <div className="flex items-center justify-center gap-6 flex-wrap">
-          <button onClick={() => { setBodyStats({ weight_kg: String(profile?.weight_kg ?? ""), height_cm: String(profile?.height_cm ?? ""), age: String(profile?.age ?? ""), gender: profile?.gender ?? "", activity_level: profile?.activity_level ?? "", goal_type: profile?.goal_type ?? "" }); setShowBodyStats(true); }}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            ⚖️ My stats
-          </button>
-          <a href="/privacy" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">🔒 Privacy</a>
-          <a href="/terms" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">📄 Terms</a>
-          <a href="/account" className="text-xs text-gray-400 hover:text-gray-600 transition-colors">👤 My account</a>
-          <button onClick={toggleDark} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            {isDark ? "☀️ Light mode" : "🌙 Dark mode"}
-          </button>
-          <button onClick={() => {
-            const next = !rolloverEnabled;
-            setRolloverEnabled(next);
-            lsSet(`caloriq-rollover-${userId}`, String(next));
-          }} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            {rolloverEnabled ? "🔄 Rollover: on" : "🔄 Rollover: off"}
-          </button>
-          <button onClick={() => setShowNotifSettings(true)}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            {notifPermission === "granted" ? "🔔 Reminder set" : "🔔 Set reminder"}
-          </button>
-          <a href={`/${userId}/nutrition`} className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-            📊 Nutrition details
-          </a>
-        </div>
-        {profile?.is_pro && (
-          <div className="mt-6 pt-4 border-t border-gray-100 dark:border-zinc-800">
-            <button onClick={handleManageSubscription}
-              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-gray-200 dark:border-zinc-700 text-sm text-gray-500 hover:bg-gray-50 dark:hover:bg-zinc-800 transition-colors">
-              💳 Manage or cancel subscription
-            </button>
-          </div>
-        )}
-      </div>
-
       {showBodyStats && (() => {
         const weightDisplay = useImperial && bodyStats.weight_kg
           ? String(Math.round(parseFloat(bodyStats.weight_kg) * 2.2046 * 10) / 10)
@@ -2595,7 +2603,7 @@ export default function TrackerPage() {
       })()}
 
       {showForgotNudge && (
-        <div className="fixed bottom-4 left-4 right-4 z-40 max-w-md mx-auto">
+        <div className="fixed left-4 right-4 z-40 max-w-md mx-auto" style={{ bottom: 'calc(80px + env(safe-area-inset-bottom) + 0.5rem)' }}>
           <div className="bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl px-4 py-3 shadow-xl flex items-center gap-3">
             <span className="text-xl flex-shrink-0">🍽️</span>
             <div className="flex-1 min-w-0">
@@ -2692,6 +2700,86 @@ export default function TrackerPage() {
           </div>
         </div>
       )}
+
+      {/* NEW — Profile bottom-sheet menu (FIX #2) */}
+      {showProfileMenu && profile && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-end" onClick={() => setShowProfileMenu(false)}>
+          <div className="bg-white dark:bg-zinc-900 rounded-t-3xl w-full max-w-md mx-auto shadow-2xl"
+            onClick={e => e.stopPropagation()}
+            style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 1rem)' }}>
+            <div className="flex justify-center pt-3 pb-1"><div className="w-10 h-1 bg-gray-200 dark:bg-zinc-700 rounded-full" /></div>
+
+            <div className="flex items-center gap-3 px-6 pt-3 pb-4 border-b border-gray-100 dark:border-zinc-800">
+              <button onClick={() => { if (!profile.photo_url) { setShowProfileMenu(false); setShowAvatarPicker(true); } }} className="flex-shrink-0">
+                {profile.photo_url ? (
+                  <img src={profile.photo_url} alt="" className="w-12 h-12 rounded-2xl object-cover" />
+                ) : (
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: profile.avatar_bg }}>{profile.avatar}</div>
+                )}
+              </button>
+              <div className="flex-1 min-w-0">
+                <p className="font-semibold truncate">{profile.name}</p>
+                {profile.is_pro
+                  ? <span className="text-xs text-blue-500 font-medium">⚡ Pro member</span>
+                  : <span className="text-xs text-gray-400">Free plan</span>}
+              </div>
+              <button onClick={() => setShowProfileMenu(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</button>
+            </div>
+
+            <div className="py-2 max-h-[60vh] overflow-y-auto">
+              <MenuItem icon={User} label="My account" onClick={() => { setShowProfileMenu(false); router.push('/account'); }} />
+              <MenuItem icon={Scale} label="My stats" onClick={() => {
+                setBodyStats({
+                  weight_kg: String(profile?.weight_kg ?? ""),
+                  height_cm: String(profile?.height_cm ?? ""),
+                  age: String(profile?.age ?? ""),
+                  gender: profile?.gender ?? "",
+                  activity_level: profile?.activity_level ?? "",
+                  goal_type: profile?.goal_type ?? "",
+                });
+                setShowProfileMenu(false);
+                setShowBodyStats(true);
+              }} />
+              <MenuItem icon={BarChart3} label="Nutrition details" onClick={() => { setShowProfileMenu(false); router.push(`/${userId}/nutrition`); }} />
+              <MenuItem icon={Bell} label={notifPermission === 'granted' ? 'Reminder set' : 'Set reminder'} onClick={() => { setShowProfileMenu(false); setShowNotifSettings(true); }} />
+              <MenuItem icon={isDark ? Sun : Moon} label={isDark ? "Light mode" : "Dark mode"} onClick={toggleDark}
+                right={<div className="w-10 h-6 rounded-full relative transition-colors flex-shrink-0" style={{ background: isDark ? "#7F77DD" : "#e5e7eb" }}><div className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform" style={{ transform: isDark ? "translateX(18px)" : "translateX(2px)" }} /></div>} />
+              <MenuItem icon={RefreshCw} label="Calorie rollover" onClick={toggleRollover}
+                right={<div className="w-10 h-6 rounded-full relative transition-colors flex-shrink-0" style={{ background: rolloverEnabled ? "#10B981" : "#e5e7eb" }}><div className="w-5 h-5 rounded-full bg-white absolute top-0.5 transition-transform" style={{ transform: rolloverEnabled ? "translateX(18px)" : "translateX(2px)" }} /></div>} />
+              {profile.is_pro && (<MenuItem icon={CreditCard} label="Manage subscription" onClick={() => { setShowProfileMenu(false); handleManageSubscription(); }} />)}
+              {!profile.is_pro && (<MenuItem icon={CreditCard} label="Upgrade to Pro" onClick={() => { setShowProfileMenu(false); setShowUpgrade(true); }} />)}
+              <MenuItem icon={MessageSquare} label="Send feedback" onClick={() => { setShowProfileMenu(false); setShowFeedback(true); }} />
+            </div>
+
+            <div className="border-t border-gray-100 dark:border-zinc-800 py-2">
+              <MenuItem icon={Shield} label="Privacy" onClick={() => { setShowProfileMenu(false); router.push('/privacy'); }} />
+              <MenuItem icon={FileText} label="Terms" onClick={() => { setShowProfileMenu(false); router.push('/terms'); }} />
+              <MenuItem icon={LogOut} label="Sign out" onClick={handleSignOut} danger />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
+
+    {/* NEW — Fixed bottom navigation */}
+    <nav className="fixed bottom-0 inset-x-0 bg-white dark:bg-zinc-900 border-t border-gray-200 dark:border-zinc-800 z-30"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+      <div className="max-w-md mx-auto h-16 grid grid-cols-5 items-center px-2">
+        <NavButton icon={HomeIcon}    label="Today"   active={tab === "today"}   onClick={() => setTab("today")} />
+        <NavButton icon={HistoryIcon} label="History" active={tab === "history"} onClick={() => setTab("history")} />
+        <div className="flex justify-center">
+          <button onClick={() => setTab("add")}
+            className="w-14 h-14 -translate-y-3 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(135deg,#7F77DD,#5b54c4)" }}
+            aria-label="Add meal">
+            <Plus className="w-7 h-7 text-white" strokeWidth={2.5} />
+          </button>
+        </div>
+        <NavButton icon={BarChart3} label="Stats"   onClick={() => router.push(`/${userId}/nutrition`)} />
+        <NavButton icon={User}      label="Profile" active={showProfileMenu} onClick={() => setShowProfileMenu(p => !p)} />
+      </div>
+    </nav>
+    </>
   );
 }
