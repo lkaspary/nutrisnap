@@ -1,6 +1,5 @@
-const CACHE_NAME = 'caloriq-v6';
+const CACHE_NAME = 'caloriq-v7';
 const STATIC_ASSETS = [
-  '/',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/manifest.json',
@@ -23,25 +22,63 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only cache GET requests
+  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // Don't cache API calls or Supabase requests
   const url = new URL(event.request.url);
+
+  // Never touch API calls or Supabase requests — let them hit the network directly
   if (url.pathname.startsWith('/api/') || url.hostname.includes('supabase')) return;
 
+  // ── NETWORK-FIRST for navigations (HTML shell) ────────────────────────────
+  // This is the critical fix: always fetch the freshest HTML from the network so
+  // a new deploy is picked up immediately. The cached shell is only used as an
+  // offline fallback. A cache-first strategy here serves a stale shell that
+  // references deleted JS bundles after a deploy, producing a blank screen.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Cache a copy of the latest shell for offline use
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put('/', clone)).catch(() => {});
+          return response;
+        })
+        .catch(() => caches.match(event.request).then((c) => c || caches.match('/')))
+    );
+    return;
+  }
+
+  // ── Next.js build assets (hashed) — network-first too ─────────────────────
+  // /_next/static/* filenames are content-hashed, so a stale cached chunk after
+  // a deploy is the other half of the blank-screen bug. Prefer network; fall
+  // back to cache only when offline.
+  if (url.pathname.startsWith('/_next/')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          if (response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(() => caches.match(event.request))
+    );
+    return;
+  }
+
+  // ── CACHE-FIRST for static icons/manifest (rarely change) ─────────────────
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).then((response) => {
-        // Cache successful responses for static assets
         if (response.ok && (event.request.url.includes('/icons/') || event.request.url.includes('/manifest'))) {
           const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone)).catch(() => {});
         }
         return response;
       });
     }).catch(() => {
-      // Offline fallback
       if (event.request.mode === 'navigate') {
         return caches.match('/');
       }
