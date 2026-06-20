@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { getProfiles, getMeals30Days, type Meal, type Profile } from "@/lib/db";
 import { getLast7Days, sumMacros, fmtShort } from "@/lib/utils";
+import BottomNav from "../BottomNav";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ExtendedMacros {
@@ -130,7 +131,7 @@ export default function NutritionPage() {
   const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem("caloriq-theme");
+    const saved = typeof window !== "undefined" ? localStorage.getItem("caloriq-theme") : null;
     if (saved === "dark") {
       document.documentElement.classList.add("dark");
       setIsDark(true);
@@ -205,10 +206,11 @@ export default function NutritionPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 pb-16 pt-4">
+    <>
+    <div className="max-w-md mx-auto px-4 pt-4" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}>
       {/* Header */}
       <div className="flex items-center gap-3 mb-6">
-        <button onClick={() => router.back()}
+        <button onClick={() => router.push(`/${userId}?tab=today`)}
           className="w-9 h-9 rounded-xl bg-gray-100 dark:bg-zinc-800 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-zinc-700 transition-colors flex-shrink-0">
           ←
         </button>
@@ -227,7 +229,7 @@ export default function NutritionPage() {
           <div className="text-4xl mb-3">📊</div>
           <p className="text-sm font-medium mb-1">Nothing to show yet</p>
           <p className="text-xs text-gray-300">Log at least 2 meals on a day to see your nutrition breakdown.</p>
-          <button onClick={() => router.back()}
+          <button onClick={() => router.push(`/${userId}?tab=add`)}
             className="mt-4 text-xs text-indigo-500 hover:text-indigo-600">← Back to logging</button>
         </div>
       ) : (
@@ -280,5 +282,8 @@ export default function NutritionPage() {
         </>
       )}
     </div>
+
+    <BottomNav active="stats" />
+    </>
   );
 }
