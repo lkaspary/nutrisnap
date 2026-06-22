@@ -53,6 +53,34 @@ function HomeContent() {
     return () => clearTimeout(timeout);
   }, [router, searchParams]);
 
+  // ── Native resume handler ─────────────────────────────────────────────────
+  // When the app returns to the foreground (e.g. after the OAuth browser, or
+  // after the user switches away and back), make sure any lingering in-app
+  // Browser overlay is closed. A dangling Browser view over a remote-URL WebView
+  // is what leaves the app on a dark, unresponsive screen on resume. Closing it
+  // on every resume lets the WebView paint again.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!(window as any).Capacitor?.isNativePlatform?.()) return;
+
+    let appListener: any = null;
+    (async () => {
+      try {
+        const { App } = await import("@capacitor/app");
+        appListener = await App.addListener("appStateChange", async ({ isActive }) => {
+          if (!isActive) return;
+          // Back in foreground — dismiss any leftover OAuth browser overlay.
+          try {
+            const { Browser } = await import("@capacitor/browser");
+            await Browser.close().catch(() => {});
+          } catch {}
+        });
+      } catch {}
+    })();
+
+    return () => { appListener?.remove?.(); };
+  }, []);
+
   const isNative = (): boolean => {
     if (typeof window === "undefined") return false;
     return !!(window as any).Capacitor?.isNativePlatform?.();
@@ -155,7 +183,7 @@ function HomeContent() {
         return;
       }
 
-      await Browser.open({ url: data.url, presentationStyle: "popover" });
+      await Browser.open({ url: data.url });
     } catch {
       setError("Could not start sign in. Try again.");
       setSigningIn(false);
