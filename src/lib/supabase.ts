@@ -4,69 +4,89 @@ const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 // ── Storage strategy ──────────────────────────────────────────────────────────
-// - SSR (no window): a no-op store so Supabase doesn't crash with
-//   "localStorage is not defined".
-// - Native (Capacitor Android/iOS): use @capacitor/preferences. The WebView's
-//   localStorage can be evicted (cache pressure, "clear data"), silently dropping
-//   the auth session and forcing a re-login. Preferences is durable native
-//   storage that survives, so users stay signed in.
-// - Web/PWA: default to window.localStorage.
+// Goal: a user logs in ONCE on the native app and stays signed in across every
+// future launch.
 //
-// Supabase's storage interface allows async get/set/remove, which lets us use
-// Capacitor Preferences (a Promise-based API) directly.
+// The earlier bug: we decided web-vs-native at module-import time via
+// window.Capacitor. But on the Capacitor WebView, the Supabase client is
+// constructed before window.Capacitor is guaranteed to be injected, so the
+// client sometimes got window.localStorage instead of Preferences. The session
+// was then written to one store and read from the other (or written to
+// localStorage, which the WebView evicts) — so the app demanded a fresh login on
+// every launch.
+//
+// The fix: DO NOT branch on native-detection at construction time. Each storage
+// operation resolves the durable store (Capacitor Preferences) lazily, at call
+// time, and MIRRORS every write into localStorage as well. Reads prefer
+// Preferences and fall back to localStorage. Because every write goes to both,
+// reads are consistent no matter which store is available when the call happens —
+// eliminating the mismatch race entirely.
 
 const isBrowser = typeof window !== "undefined";
 
-function isNativeApp(): boolean {
-  if (!isBrowser) return false;
-  return !!(window as any).Capacitor?.isNativePlatform?.();
-}
-
+// No-op store for SSR so Supabase doesn't crash with "localStorage is not defined".
 const noopStorage = {
   getItem: async () => null,
   setItem: async () => {},
   removeItem: async () => {},
 };
 
-// Capacitor Preferences-backed storage. Lazily imports the plugin so web builds
-// don't pull it in, and falls back to localStorage if the plugin isn't present.
-const nativeStorage = {
+// Lazily get the Capacitor Preferences plugin if it's present in this runtime.
+// Returns null on web (or if the plugin isn't installed), so callers fall back
+// to localStorage. Resolved at CALL time, never at import time.
+async function getPreferences(): Promise<any | null> {
+  try {
+    const mod = await import("@capacitor/preferences");
+    return mod?.Preferences ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function lsGet(k: string): string | null {
+  try { return window.localStorage.getItem(k); } catch { return null; }
+}
+function lsSet(k: string, v: string): void {
+  try { window.localStorage.setItem(k, v); } catch {}
+}
+function lsRemove(k: string): void {
+  try { window.localStorage.removeItem(k); } catch {}
+}
+
+// Durable, race-free storage adapter.
+const durableStorage = {
   async getItem(k: string): Promise<string | null> {
-    try {
-      const { Preferences } = await import("@capacitor/preferences");
-      const { value } = await Preferences.get({ key: k });
-      return value ?? null;
-    } catch {
-      try { return window.localStorage.getItem(k); } catch { return null; }
+    // Prefer the native durable store; fall back to localStorage.
+    const Preferences = await getPreferences();
+    if (Preferences) {
+      try {
+        const { value } = await Preferences.get({ key: k });
+        if (value != null) return value;
+      } catch { /* fall through to localStorage */ }
     }
+    return lsGet(k);
   },
   async setItem(k: string, v: string): Promise<void> {
-    try {
-      const { Preferences } = await import("@capacitor/preferences");
-      await Preferences.set({ key: k, value: v });
-    } catch {
-      try { window.localStorage.setItem(k, v); } catch {}
+    // Write to BOTH stores so reads are consistent regardless of which is
+    // available at read time. Preferences is the durable one on native.
+    const Preferences = await getPreferences();
+    if (Preferences) {
+      try { await Preferences.set({ key: k, value: v }); } catch {}
     }
+    lsSet(k, v);
   },
   async removeItem(k: string): Promise<void> {
-    try {
-      const { Preferences } = await import("@capacitor/preferences");
-      await Preferences.remove({ key: k });
-    } catch {
-      try { window.localStorage.removeItem(k); } catch {}
+    const Preferences = await getPreferences();
+    if (Preferences) {
+      try { await Preferences.remove({ key: k }); } catch {}
     }
+    lsRemove(k);
   },
 };
 
-function pickStorage() {
-  if (!isBrowser) return noopStorage as any;
-  if (isNativeApp()) return nativeStorage as any;
-  return window.localStorage;
-}
-
 export const supabase = createClient(url, key, {
   auth: {
-    storage: pickStorage(),
+    storage: isBrowser ? (durableStorage as any) : (noopStorage as any),
     persistSession: isBrowser,
     autoRefreshToken: isBrowser,
     detectSessionInUrl: isBrowser,
