@@ -16,6 +16,7 @@ import {
   Scale, Bell, Moon, Sun, RefreshCw, CreditCard, MessageSquare,
   Shield, FileText, LogOut, ChevronRight,
 } from "lucide-react";
+import NativeResumeHandler from "./NativeResumeHandler";
 
 // ── SSR-safe localStorage helpers ────────────────────────────────────────────
 // During Next.js server rendering, `window` is undefined and direct localStorage
@@ -1904,6 +1905,7 @@ export default function TrackerPage() {
 
   return (
     <>
+    <NativeResumeHandler />
     <div className="max-w-md mx-auto px-4 pt-4" style={{ paddingBottom: "calc(96px + env(safe-area-inset-bottom))" }}>
 
       {showOnboarding && profile && (
