@@ -43,6 +43,16 @@ function isNativeApp(): boolean {
   return !!(window as any).Capacitor?.isNativePlatform?.();
 }
 
+// Opens an external URL — Custom Tab on native, regular navigation on web.
+async function openExternalUrl(url: string) {
+  if (isNativeApp()) {
+    const { Browser } = await import("@capacitor/browser");
+    await Browser.open({ url });
+  } else {
+    window.location.href = url;
+  }
+}
+
 // ── helpers ───────────────────────────────────────────────────────────────────
 function readFileAsBase64(file: File): Promise<{ base64: string; mimeType: string }> {
   return new Promise((res, rej) => {
@@ -1703,13 +1713,9 @@ export default function TrackerPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ profileId: userId }),
       }).then(r => r.json());
-      if (res.url) {
-        window.location.href = res.url;
-      } else {
-        window.location.href = "https://billing.stripe.com/p/login/14A6oA8ILaui26P8Zu3ks00";
-      }
+      await openExternalUrl(res.url ?? "https://billing.stripe.com/p/login/14A6oA8ILaui26P8Zu3ks00");
     } catch {
-      window.location.href = "https://billing.stripe.com/p/login/14A6oA8ILaui26P8Zu3ks00";
+      await openExternalUrl("https://billing.stripe.com/p/login/14A6oA8ILaui26P8Zu3ks00");
     }
   };
 
@@ -1816,7 +1822,7 @@ export default function TrackerPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan, profileId: userId }),
       }).then(r => r.json());
-      if (res.url) window.location.href = res.url;
+      if (res.url) await openExternalUrl(res.url);
       else setError("Could not start checkout. Try again.");
     } catch {
       setError("Could not start checkout. Try again.");
