@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { withCors, optionsResponse } from "@/lib/cors";
+
+export async function OPTIONS(req: NextRequest) {
+  return optionsResponse(req);
+}
 
 export async function POST(req: NextRequest) {
+  return withCors(req, await handleFeedback(req));
+}
+
+async function handleFeedback(req: NextRequest): Promise<NextResponse> {
   try {
     const { message, profileName } = await req.json();
     if (!message?.trim()) {

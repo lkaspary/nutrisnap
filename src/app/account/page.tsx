@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { API_BASE } from "@/lib/apiBase";
 
 function MessageBox() {
   const [msg, setMsg] = useState("");
@@ -11,7 +12,7 @@ function MessageBox() {
     if (!msg.trim()) return;
     setSending(true);
     try {
-      const res = await fetch("/api/feedback", {
+      const res = await fetch(`${API_BASE}/api/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: msg, profileName: "Account page visitor" }),
@@ -75,7 +76,7 @@ export default function AccountPage() {
     setDeleting(true);
     setStep("deleting");
     try {
-      const res = await fetch("/api/account/delete", {
+      const res = await fetch(`${API_BASE}/api/account/delete`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim().toLowerCase() }),

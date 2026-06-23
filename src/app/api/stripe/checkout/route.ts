@@ -16,7 +16,17 @@ function getSupabase() {
   );
 }
 
+import { withCors, optionsResponse } from "@/lib/cors";
+
+export async function OPTIONS(req: NextRequest) {
+  return optionsResponse(req);
+}
+
 export async function POST(req: NextRequest) {
+  return withCors(req, await handleCheckout(req));
+}
+
+async function handleCheckout(req: NextRequest): Promise<NextResponse> {
   try {
     const { plan, profileId } = await req.json();
 

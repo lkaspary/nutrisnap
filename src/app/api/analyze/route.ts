@@ -1,10 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+import { withCors, optionsResponse } from "@/lib/cors";
 
 export const maxDuration = 60; // 60 second timeout (requires Vercel Pro for >10s)
-export const dynamic = "force-dynamic";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const FREE_LIMIT = 5;
@@ -12,21 +11,24 @@ const FREE_LIMIT = 5;
 // Centralize the model name so we never have version drift across this file again.
 const MODEL = "claude-sonnet-4-6";
 
-async function getSupabase() {
-  const cookieStore = await cookies();
-  return createServerClient(
+// Uses service-role key so profile/usage queries work from both web and native
+// (native makes cross-origin requests that don't carry the calor-iq.com cookies).
+function getSupabase() {
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll: () => cookieStore.getAll(),
-        setAll: (c) => c.forEach(({ name, value, options }) => cookieStore.set(name, value, options)),
-      },
-    }
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
 
+export async function OPTIONS(req: NextRequest) {
+  return optionsResponse(req);
+}
+
 export async function POST(req: NextRequest) {
+  return withCors(req, await handleAnalyze(req));
+}
+
+async function handleAnalyze(req: NextRequest): Promise<NextResponse> {
   try {
     const { mode, text, base64, mimeType, clarification, profileId } = await req.json();
 
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Profile ID required." }, { status: 400 });
     }
 
-    const supabase = await getSupabase();
+    const supabase = getSupabase();
     const today = new Date().toISOString().split("T")[0];
 
     // Check pro status

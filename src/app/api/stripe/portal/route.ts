@@ -11,7 +11,17 @@ function getSupabase() {
   );
 }
 
+import { withCors, optionsResponse } from "@/lib/cors";
+
+export async function OPTIONS(req: NextRequest) {
+  return optionsResponse(req);
+}
+
 export async function POST(req: NextRequest) {
+  return withCors(req, await handlePortal(req));
+}
+
+async function handlePortal(req: NextRequest): Promise<NextResponse> {
   try {
     const { profileId } = await req.json();
     if (!profileId) return NextResponse.json({ error: "Missing profileId" }, { status: 400 });

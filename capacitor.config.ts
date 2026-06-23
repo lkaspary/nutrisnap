@@ -4,8 +4,7 @@ const config: CapacitorConfig = {
   appName: 'Calor-IQ',
   webDir: 'out',
   server: {
-    url: 'https://calor-iq.com',
-    cleartext: false,
+    androidScheme: 'https',
   },
 };
 export default config;

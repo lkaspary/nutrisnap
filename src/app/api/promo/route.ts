@@ -39,7 +39,17 @@ function durationLabel(duration: string): string {
   return duration;
 }
 
+import { withCors, optionsResponse } from "@/lib/cors";
+
+export async function OPTIONS(req: NextRequest) {
+  return optionsResponse(req);
+}
+
 export async function POST(req: NextRequest) {
+  return withCors(req, await handlePromo(req));
+}
+
+async function handlePromo(req: NextRequest): Promise<NextResponse> {
   try {
     const { code, profileId } = await req.json();
     if (!code || !profileId) {
